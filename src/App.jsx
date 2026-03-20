@@ -1,7 +1,71 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import * as XLSX from "xlsx";
+impor * s XLSX from "xlsx";
+import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+
+// ⬇️ 여기에 본인의 클라이언트 ID 붙여넣기!
+const GOOGLE_CLIENT_ID = "167666540402-ug48sj0qfst2g08lhcckkf69jvjhel21.apps.googleusercontent.com";
+
+// Google Drive 파일명
+const DRIVE_FILE_NAME = "notes-app-data.json";
+
 
 // ─── Constants ────────────────────────────────────────────
+// ─── Google Drive Helpers ─────────────────────────────────
+async function gdriveFind(token) {
+  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const data = await res.json();
+  return data.files?.[0]?.id || null;
+}
+
+async function gdriveRead(token, fileId) {
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function gdriveSave(token, data, existingFileId) {
+  const metadata = { name: DRIVE_FILE_NAME, mimeType: "application/json" };
+  const body = JSON.stringify(data);
+
+  if (existingFileId) {
+    // Update existing file
+    await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      }
+    );
+  } else {
+    // Create new file
+    const form = new FormData();
+    form.append(
+      "metadata",
+      new Blob([JSON.stringify(metadata)], { type: "application/json" })
+    );
+    form.append("file", new Blob([body], { type: "application/json" }));
+    await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      }
+    );
+  }
+}
+
 const T = { HEADER: "header", TODO: "todo", TEXT: "text" };
 const NOTICE_ID = "__notice__";
 const CALENDAR_ID = "__calendar__";
@@ -882,7 +946,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 
 // ─── SwipeFolder: single folder row with swipe-to-delete ──
 // ─── Sidebar ──────────────────────────────────────────────
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount }) {
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus }) {
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // folder item to confirm
   const containerRef = useRef(null);
@@ -1006,9 +1070,19 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
       <div style={{ padding:"12px 12px 28px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
         {user ? (
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#4285F4,#34A853)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700, flexShrink:0 }}>
-              {user.name?.[0]?.toUpperCase() || "G"}
-            </div>
+            {user.picture
+  ? <img src={user.picture} alt="" style={{ width:32, height:32, borderRadius:"50%", flexShrink:0 }} referrerPolicy="no-referrer" />
+  : <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#4285F4,#34A853)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700, flexShrink:0 }}>
+      {user.name?.[0]?.toUpperCase() || "G"}
+    </div>
+}
+{user.picture
+  ? <img src={user.picture} alt="" style={{ width:32, height:32, borderRadius:"50%", flexShrink:0 }} referrerPolicy="no-referrer" />
+  : <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#4285F4,#34A853)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700, flexShrink:0 }}>
+      {user.name?.[0]?.toUpperCase() || "G"}
+    </div>
+}
+
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ color:"#fff", fontSize:12.5, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
               <div style={{ color:"rgba(255,255,255,.4)", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
@@ -1699,7 +1773,10 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 }
 
 // ─── App ──────────────────────────────────────────────────
-export default function App() {
+function AppInner() {
+  // ... 기존 App 내용 전체 그대로 ...
+}
+
   const isMobile = useIsMobile();
   const [sidebarItems, setSidebarItems] = useState(initSidebar);
   const [items,        setItems]        = useState(initItems);
@@ -1713,8 +1790,13 @@ export default function App() {
   const [selected,     setSelected]     = useState(new Set());
   const [collapsedHdrs,setCollapsedHdrs] = useState(new Set());
   const toggleHdr = id => setCollapsedHdrs(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
-  const [user,         setUser]         = useState(null);
-  const [showLogin,    setShowLogin]    = useState(false);
+const [user, setUser] = useState(null);
+const [accessToken, setAccessToken] = useState(null);
+const [showLogin, setShowLogin] = useState(false);
+const [driveFileId, setDriveFileId] = useState(null);
+const [syncStatus, setSyncStatus] = useState(""); // "", "saving", "saved", "error"
+const [dataLoaded, setDataLoaded] = useState(false);
+
 
   const folders     = sidebarItems.filter(i => i.type === "folder");
   const isNotice    = activeFolder === NOTICE_ID;
@@ -1772,14 +1854,92 @@ export default function App() {
   const restoreItem  = id => setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:undefined, originalFolder:undefined, originalFolderName:undefined} : i));
   const permDel      = id => setItems(prev => prev.filter(i => i.id!==id));
   const emptyTrash   = () => setItems(prev => prev.filter(i => !i.deletedAt));
-  const mockLogin    = () => { setUser({ name:"두호 Kim", email:"duho@gmail.com" }); setShowLogin(false); };
+// ─── Google Login ─────────────────────────────────────────
+const googleLogin = useGoogleLogin({
+  scope: "https://www.googleapis.com/auth/drive.file",
+  onSuccess: async (tokenResponse) => {
+    const token = tokenResponse.access_token;
+    setAccessToken(token);
 
-  const SC = (
-    <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
-      activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
-      user={user} onLogin={() => setShowLogin(true)} onLogout={() => setUser(null)}
-      trashCount={trashItems.length} />
-  );
+    // Get user info
+    try {
+      const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const info = await res.json();
+      setUser({ name: info.name, email: info.email, picture: info.picture });
+    } catch (e) {
+      setUser({ name: "User", email: "" });
+    }
+
+    // Load data from Drive
+    try {
+      const fileId = await gdriveFind(token);
+      if (fileId) {
+        setDriveFileId(fileId);
+        const data = await gdriveRead(token, fileId);
+        if (data) {
+          if (data.sidebarItems) setSidebarItems(data.sidebarItems);
+          if (data.items) setItems(data.items);
+          if (data.worklogs) setWorklogs(data.worklogs);
+          setSyncStatus("saved");
+        }
+      }
+    } catch (e) {
+      console.error("Drive load error:", e);
+    }
+    setDataLoaded(true);
+    setShowLogin(false);
+  },
+  onError: () => {
+    alert("Google 로그인에 실패했습니다.");
+  },
+});
+
+const handleLogout = () => {
+  setUser(null);
+  setAccessToken(null);
+  setDriveFileId(null);
+  setDataLoaded(false);
+  setSyncStatus("");
+};
+// ─── Auto-save to Google Drive ────────────────────────────
+const saveTimer = useRef(null);
+
+useEffect(() => {
+  if (!accessToken || !dataLoaded) return;
+
+  // Debounce: save 2 seconds after last change
+  if (saveTimer.current) clearTimeout(saveTimer.current);
+  saveTimer.current = setTimeout(async () => {
+    setSyncStatus("saving");
+    try {
+      const data = { sidebarItems, items, worklogs };
+      await gdriveSave(accessToken, data, driveFileId);
+
+      // If first save, find the file ID
+      if (!driveFileId) {
+        const fid = await gdriveFind(accessToken);
+        if (fid) setDriveFileId(fid);
+      }
+      setSyncStatus("saved");
+    } catch (e) {
+      console.error("Drive save error:", e);
+      setSyncStatus("error");
+    }
+  }, 2000);
+
+  return () => clearTimeout(saveTimer.current);
+}, [sidebarItems, items, worklogs, accessToken, dataLoaded]);
+
+
+const SC = (
+  <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
+    activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
+    user={user} onLogin={() => googleLogin()} onLogout={handleLogout}
+    trashCount={trashItems.length} syncStatus={syncStatus} />
+);
+
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
 
@@ -1948,12 +2108,20 @@ export default function App() {
             <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Google로 로그인</div>
             <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>로그인하면 노트가 Google Drive에<br/>자동 동기화됩니다. (현재 데모 모드)</p>
             <button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"13px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
-              onClick={mockLogin}>Google 계정으로 계속하기</button>
+              onClick={() => { setShowLogin(false); googleLogin(); }}
+>Google 계정으로 계속하기</button>
             <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
               onClick={() => setShowLogin(false)}>취소</button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+export default function App() {
+  return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <AppInner />
+    </GoogleOAuthProvider>
   );
 }
