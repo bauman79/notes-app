@@ -963,10 +963,53 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 
 // ─── SwipeFolder: single folder row with swipe-to-delete ──
 // ─── Sidebar ──────────────────────────────────────────────
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId }) {
+// ─── FolderRow: hover-to-edit hint ───────────────────────
+function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focusNewId, setSidebarItems }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div key={item.id} data-sortidx={index}
+      style={{ ...NI, color: isActive?"#fff":"rgba(255,255,255,.6)",
+        background: isActive?"rgba(255,255,255,.12)":"transparent",
+        position:"relative" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onSelect(item.id)}>
+      <span style={{ fontSize:11, width:16, color: isActive?"rgba(255,255,255,.7)":"rgba(255,255,255,.4)", flexShrink:0 }}>○</span>
+      {focusNewId === item.id
+        ? <input data-focusid={item.id}
+            value={item.name}
+            onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id?{...i,name:e.target.value}:i))}
+            onClick={e => e.stopPropagation()}
+            style={{ flex:1, fontSize:13.5, background:"transparent", border:"none", borderBottom:"1px solid rgba(255,255,255,.3)", outline:"none", color:"inherit", fontFamily:"inherit", fontWeight:500, minWidth:0 }} />
+        : <span style={{ flex:1, fontSize:13.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
+      }
+      {/* Edit hint — shows on hover */}
+      {hovered && !isActive && (
+        <span style={{ fontSize:10, color:"rgba(255,255,255,.3)", flexShrink:0, marginRight:2 }}>✎</span>
+      )}
+      <span
+        style={{ color:"rgba(255,120,120,.45)", fontSize:15, lineHeight:1, cursor:"pointer",
+          padding:"0 3px", flexShrink:0,
+          opacity: hovered ? 1 : 0, transition:"opacity .15s" }}
+        title="Delete folder"
+        onMouseDown={e => { e.stopPropagation(); onDelete(); }}>×</span>
+      {handle}
+    </div>
+  );
+}
+
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  // Auto-focus new item
+  useEffect(() => {
+    if (!focusNewId) return;
+    setTimeout(() => {
+      const el = document.querySelector(`[data-focusid="${focusNewId}"]`);
+      if (el) { el.focus(); el.select?.(); onFocusDone?.(); }
+    }, 80);
+  }, [focusNewId]);
   const [collapsedSB, setCollapsedSB] = useState(() => {
     try {
       const saved = localStorage.getItem("notes_collapsedSB");
@@ -1025,6 +1068,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
                 style={{ color:"rgba(255,255,255,.35)", fontSize:12, cursor:"pointer", flexShrink:0, display:"inline-block", transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)" }}
                 onMouseDown={e => { e.stopPropagation(); toggleSB(item.id); }}>▾</span>
               <input
+                data-focusid={item.id}
                 value={item.label}
                 onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i, label:e.target.value} : i))}
                 onClick={e => e.stopPropagation()}
@@ -1045,17 +1089,13 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             </div>
           );
           if (item.type === "folder") return (
-            <div key={item.id} data-sortidx={index}
-              style={{ ...NI, color:"rgba(255,255,255,.6)", ...(activeFolder===item.id?{background:"rgba(255,255,255,.12)",color:"#fff"}:{}) }}
-              onClick={() => onSelect(item.id)}>
-              <span style={{ fontSize:11, width:16, color:"rgba(255,255,255,.4)", flexShrink:0 }}>○</span>
-              <span style={{ flex:1, fontSize:13.5 }}>{item.name}</span>
-              <span
-                style={{ color:"rgba(255,120,120,.5)", fontSize:16, lineHeight:1, cursor:"pointer", padding:"0 3px", flexShrink:0 }}
-                title="폴더 삭제"
-                onMouseDown={e => { e.stopPropagation(); setConfirmDelete(item); }}>×</span>
-              {handle}
-            </div>
+            <FolderRow key={item.id} item={item} index={index} NI={NI}
+              isActive={activeFolder===item.id}
+              handle={handle}
+              onSelect={onSelect}
+              onDelete={() => setConfirmDelete(item)}
+              focusNewId={focusNewId}
+              setSidebarItems={setSidebarItems} />
           );
           return null;
         });
@@ -1802,7 +1842,14 @@ const footBtn = {background:"none",border:"1px dashed #b8cce8",borderRadius:6,co
 
 
 // ─── SortableList ────────────────────────────────────────
-function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMode, selected, togSel, isMobile, upd, softDel }) {
+function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMode, selected, togSel, isMobile, upd, softDel, folders, focusNewItem, onFocusItemDone }) {
+  useEffect(() => {
+    if (!focusNewItem) return;
+    setTimeout(() => {
+      const el = document.querySelector(`[data-todoitem="${focusNewItem}"]`);
+      if (el) { el.focus(); onFocusItemDone?.(); }
+    }, 60);
+  }, [focusNewItem]);
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, items, setItems);
 
@@ -1870,7 +1917,22 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
               )}
               {handle(idx, item.type===T.TEXT?16:14)}
               <div style={{ flex:1 }}>
-                <ItemBlock item={item} isMobile={isMobile} onUpdate={p=>upd(item.id,p)} onDelete={()=>softDel(item.id)} />
+                <ItemBlock item={item} isMobile={isMobile} onUpdate={p=>upd(item.id,p)} onDelete={()=>softDel(item.id)}
+                  onMove={folderId => upd(item.id, { folder:folderId })} folders={folders}
+                  onAddBelow={item.type===T.TODO ? () => {
+                    const newId = `i${Date.now()}`;
+                    const newTodo = { id:newId, type:T.TODO, folder:item.folder, starred:false, createdAt:item.createdAt, title:"", done:false };
+                    setItems(arr => {
+                      const a = [...arr];
+                      const pos = a.findIndex(x => x.id===item.id);
+                      a.splice(pos+1, 0, newTodo);
+                      return a;
+                    });
+                    if (onFocusItemDone) setTimeout(() => {
+                      const el = document.querySelector(`[data-todoitem="${newId}"]`);
+                      if (el) el.focus();
+                    }, 60);
+                  } : undefined} />
               </div>
             </div>
           ))}
@@ -1887,24 +1949,48 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
 function CompletedSection({ doneTodos, upd, isMobile }) {
   const [open, setOpen] = useState(false);
   const fs = isMobile ? 14 : 13.5;
+  // Most recently completed first
+  const sorted = [...doneTodos].reverse();
   return (
-    <div style={{ marginTop:16, borderTop:"1px solid #e8eef8", paddingTop:8 }}>
+    <div style={{ marginTop:20, borderTop:"1px dashed #e0eaf8", paddingTop:10 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", padding:"6px 4px", userSelect:"none" }}
         onClick={() => setOpen(v => !v)}>
-        <span style={{ display:"inline-block", transition:"transform .2s", transform:open?"rotate(0deg)":"rotate(-90deg)", color:"#94a3b8", fontSize:13 }}>▾</span>
-        <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:"0.3px" }}>
-          Completed ({doneTodos.length})
-        </span>
+        <span style={{ display:"inline-block", transition:"transform .2s",
+          transform:open?"rotate(0deg)":"rotate(-90deg)", color:"#94a3b8", fontSize:13 }}>▾</span>
+        <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8" }}>Completed</span>
+        {/* Badge */}
+        <span style={{ background:"#e8eef8", color:"#6b8bb5", borderRadius:10,
+          padding:"1px 8px", fontSize:11, fontWeight:700 }}>{doneTodos.length}</span>
+        <span style={{ flex:1 }}/>
+        {doneTodos.length > 0 && (
+          <span style={{ fontSize:10, color:"#b0c4de" }}>
+            Latest: {sorted[0]?.createdAt || ""}
+          </span>
+        )}
       </div>
       {open && (
-        <div style={{ paddingLeft:4, marginTop:4 }}>
-          {doneTodos.map(item => (
-            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#f8faff", borderRadius:10, padding:"10px 12px", marginBottom:4, opacity:.65, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
-              <div style={{ borderRadius:5, border:"1.5px solid #2563eb", background:"#2563eb", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:18, height:18 }}
+        <div style={{ marginTop:4 }}>
+          {sorted.map(item => (
+            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:8,
+              background:"#f8faff", borderRadius:10, padding:"9px 12px", marginBottom:3,
+              width:"100%", boxSizing:"border-box", overflow:"hidden",
+              borderLeft:"3px solid #e0eaf8" }}>
+              {/* Uncheck button */}
+              <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", background:"#e8f0fe",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", flexShrink:0, width:18, height:18 }}
+                title="Mark as incomplete"
                 onClick={() => upd(item.id, { done:false })}>
-                <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>
+                <span style={{ color:"#2563eb", fontSize:11, fontWeight:700 }}>✓</span>
               </div>
-              <span style={{ flex:1, fontSize:fs, color:"#96acc8", textDecoration:"line-through", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>{item.title||"(no title)"}</span>
+              <span style={{ flex:1, fontSize:fs, color:"#a0b4cc",
+                textDecoration:"line-through", overflow:"hidden",
+                textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>
+                {item.title||"(no title)"}
+              </span>
+              {!isMobile && item.createdAt && (
+                <span style={{ fontSize:10, color:"#c0d0e4", flexShrink:0 }}>{item.createdAt}</span>
+              )}
             </div>
           ))}
         </div>
@@ -1913,10 +1999,11 @@ function CompletedSection({ doneTodos, upd, isMobile }) {
   );
 }
 
-function ItemBlock({ item, isMobile, onUpdate, onDelete }) {
+function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddBelow }) {
   const bp = {};
   const drag = {};
   const fs = isMobile ? 15 : 14;
+  const [showMove, setShowMove] = useState(false);
 
   if (item.type === T.HEADER) return (
     <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
@@ -1935,11 +2022,41 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete }) {
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
-        <input style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
-          value={item.title} placeholder="Add a task..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
+        <input
+          data-todoitem={item.id}
+          style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+          value={item.title}
+          placeholder="Add a task..."
+          onChange={e => onUpdate({ title:e.target.value })}
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+        />
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
+        {/* Move to folder */}
+        {onMove && folders && (
+          <div style={{ position:"relative", flexShrink:0 }}>
+            <span style={{ color:"#c2d0e8", fontSize:14, cursor:"pointer", padding:"0 2px", userSelect:"none" }}
+              onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="Move to folder">⋯</span>
+            {showMove && (
+              <div style={{ position:"absolute", right:0, top:"100%", background:"#fff", borderRadius:10,
+                boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8",
+                zIndex:500, minWidth:150, overflow:"hidden", marginTop:4 }}>
+                <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
+                {folders.map(f => (
+                  <div key={f.id}
+                    style={{ padding:"9px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
+                      color: item.folder===f.id?"#2563eb":"#1e3a6e",
+                      background: item.folder===f.id?"#eff6ff":"transparent" }}
+                    onMouseDown={() => { onMove(f.id); setShowMove(false); }}>
+                    {item.folder===f.id && <span style={{ marginRight:6, fontSize:11 }}>✓</span>}{f.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
       </div>
     </div>
@@ -1997,7 +2114,9 @@ function AppInner() {
   const [editingFN,    setEditingFN]    = useState(false);
   const [fnDraft,      setFnDraft]      = useState("");
   const [showAddMenu,  setShowAddMenu]  = useState(false);
-  const [showSidebar,  setShowSidebar]  = useState(false);
+  const [showSidebar,   setShowSidebar]   = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [globalQuery,      setGlobalQuery]      = useState("");
   const [selMode,      setSelMode]      = useState(false);
   const [selected,     setSelected]     = useState(new Set());
   const [collapsedHdrs,setCollapsedHdrs] = useState(() => {
@@ -2049,6 +2168,8 @@ function AppInner() {
     setItems(prev => [...prev, ni]);
     setShowAddMenu(false);
   };
+  const [focusNewSBI,  setFocusNewSBI]  = useState(null);
+  const [focusNewItem, setFocusNewItem] = useState(null);
   const addSBI = (type, afterId) => {
     const id = `si${nextId++}`;
     const newItem =
@@ -2063,6 +2184,7 @@ function AppInner() {
       arr.splice(idx + 1, 0, newItem);
       return arr;
     });
+    if (type !== "divider") setFocusNewSBI(id);
   };
   const upd      = (id, patch) => setItems(prev => prev.map(i => i.id===id ? {...i,...patch} : i));
   const softDel  = useCallback(id => {
@@ -2223,7 +2345,8 @@ function AppInner() {
       activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
       user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout}
       trashCount={trashItems.length} syncStatus={syncStatus}
-      activeSidebarId={activeFolder} />
+      activeSidebarId={activeFolder}
+      focusNewId={focusNewSBI} onFocusDone={() => setFocusNewSBI(null)} />
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
@@ -2232,10 +2355,17 @@ function AppInner() {
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
       onClick={() => setShowAddMenu(false)}>
 
-      {isMobile && showSidebar && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(10,24,50,.5)", zIndex:300, display:"flex" }}
+      {isMobile && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(10,24,50,.5)", zIndex:300, display:"flex",
+          opacity: showSidebar ? 1 : 0,
+          pointerEvents: showSidebar ? "auto" : "none",
+          transition:"opacity 0.22s ease" }}
           onClick={() => setShowSidebar(false)}>
-          <div style={{ width:244, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)", display:"flex", flexDirection:"column", height:"100%", boxShadow:"4px 0 24px rgba(28,110,243,.3)" }}
+          <div style={{ width:244, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)",
+            display:"flex", flexDirection:"column", height:"100%",
+            boxShadow:"4px 0 24px rgba(28,110,243,.3)",
+            transform: showSidebar ? "translateX(0)" : "translateX(-100%)",
+            transition:"transform 0.25s cubic-bezier(.4,0,.2,1)" }}
             onClick={e => e.stopPropagation()}>{SC}</div>
         </div>
       )}
@@ -2270,6 +2400,76 @@ function AppInner() {
           </div>
 
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {/* Sync status indicator */}
+            {syncStatus && (
+              <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error — tap to re-login"}
+                style={{ width:34, height:34, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center",
+                  background: syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)",
+                  cursor: syncStatus==="error"?"pointer":"default" }}
+                onClick={syncStatus==="error" ? () => setShowLogin(true) : undefined}>
+                <span style={{ fontSize:16 }}>
+                  {syncStatus==="saving"?"⏳":syncStatus==="saved"?"☁️":"❌"}
+                </span>
+              </div>
+            )}
+            {/* Global search button */}
+            <button style={{ width:34, height:34, borderRadius:9, background:"rgba(37,99,235,.07)", border:"none",
+              cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+              title="Search all notes"
+              onClick={() => setShowGlobalSearch(v => !v)}>
+              <span style={{ fontSize:16 }}>🔍</span>
+            </button>
+            {/* Global search panel */}
+            {showGlobalSearch && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(15,32,68,.35)", zIndex:700,
+                display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:60 }}
+                onClick={() => { setShowGlobalSearch(false); setGlobalQuery(""); }}>
+                <div style={{ background:"#fff", borderRadius:16, padding:20, width:"min(500px,90vw)",
+                  boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
+                  onClick={e => e.stopPropagation()}>
+                  <input autoFocus
+                    style={{ width:"100%", padding:"12px 16px", borderRadius:10, border:"1.5px solid #e0eaf8",
+                      fontSize:15, color:"#1e3a6e", outline:"none", fontFamily:"inherit",
+                      boxSizing:"border-box", marginBottom:12 }}
+                    placeholder="Search all notes..."
+                    value={globalQuery}
+                    onChange={e => setGlobalQuery(e.target.value)} />
+                  {globalQuery.trim() && (() => {
+                    const q = globalQuery.trim().toLowerCase();
+                    const results = liveItems.filter(i =>
+                      (i.title||"").toLowerCase().includes(q) ||
+                      (i.body||"").toLowerCase().includes(q)
+                    );
+                    return results.length === 0
+                      ? <div style={{ textAlign:"center", color:"#94a3b8", padding:"20px 0", fontSize:13 }}>No results</div>
+                      : <div style={{ maxHeight:320, overflowY:"auto" }}>
+                          {results.map(item => {
+                            const folder = folders.find(f => f.id===item.folder);
+                            return (
+                              <div key={item.id}
+                                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px",
+                                  borderRadius:9, cursor:"pointer", marginBottom:2 }}
+                                onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                                onClick={() => {
+                                  if (folder) setActiveFolder(item.folder);
+                                  setShowGlobalSearch(false); setGlobalQuery("");
+                                }}>
+                                <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, width:14 }}>
+                                  {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
+                                </span>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(untitled)"}</div>
+                                  {folder && <div style={{ fontSize:11, color:"#94a3b8", marginTop:1 }}>{folder.name}</div>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>;
+                  })()}
+                </div>
+              </div>
+            )}
             {!isSpecial && (
               selMode ? (
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -2362,13 +2562,23 @@ function AppInner() {
                 isMobile={isMobile}
                 upd={upd}
                 softDel={softDel}
+                folders={folders}
+                focusNewItem={focusNewItem}
+                onFocusItemDone={() => setFocusNewItem(null)}
               />
             );
           })()}
           {!isSpecial && visibleItems.length === 0 && (
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", color:"#b0c4de" }}>
-              <div style={{ fontSize:36, marginBottom:10 }}>◌</div>
-              <div style={{ fontSize:13 }}>Empty. Add something.</div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0 80px", color:"#b0c4de", textAlign:"center" }}>
+              <div style={{ fontSize:40, marginBottom:12, opacity:.5 }}>◌</div>
+              <div style={{ fontSize:14, color:"#94a3b8", fontWeight:600, marginBottom:8 }}>This folder is empty</div>
+              <div style={{ fontSize:12.5, color:"#b0c4de", lineHeight:1.8, maxWidth:220 }}>
+                Tap the <span style={{ background:"#2563eb", color:"#fff", borderRadius:6, padding:"1px 7px", fontSize:12, fontWeight:700 }}>+</span> button to add<br/>
+                a Header, To-do, or Text note
+              </div>
+              <div style={{ marginTop:20, fontSize:11, color:"#c8d8ee" }}>
+                ↗ top right corner
+              </div>
             </div>
           )}
         </div>
