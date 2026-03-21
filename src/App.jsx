@@ -1110,9 +1110,10 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
 
           if (item.type === "sheader") return (
             <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", gap:4, padding:"10px 12px 4px", userSelect:"none" }}>
-              <span
-                style={{ color:"rgba(255,255,255,.5)", fontSize:18, cursor:"pointer", flexShrink:0, display:"inline-block", transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)", padding:"2px 4px", minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
-                onMouseDown={e => { e.stopPropagation(); toggleSB(item.id); }}>▾</span>
+              <button
+                style={{ background:"none", border:"none", color:"rgba(255,255,255,.6)", fontSize:22, cursor:"pointer", flexShrink:0, transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)", width:36, height:36, display:"flex", alignItems:"center", justifyContent:"center", padding:0, borderRadius:6, touchAction:"manipulation" }}
+                onMouseDown={e => { e.stopPropagation(); toggleSB(item.id); }}
+                onTouchEnd={e => { e.preventDefault(); e.stopPropagation(); toggleSB(item.id); }}>▾</button>
               <input
                 data-focusid={item.id}
                 value={item.label}
@@ -2625,7 +2626,7 @@ function AppInner() {
         {/* Top bar */}
         <div style={{ background:"#f0f4fa", padding:isMobile?"16px 14px 10px":"26px 36px 14px" }}>
           {/* Title row */}
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: isMobile&&!isSpecial ? 10 : 0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: isMobile ? 10 : 0 }}>
             {isMobile && (
               <button style={{ width:36, height:36, borderRadius:10, background:"rgba(37,99,235,.08)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}
                 onClick={e => { e.stopPropagation(); setShowSidebar(v => !v); }}>
@@ -2759,7 +2760,7 @@ function AppInner() {
             )}
             </div>}
           {/* Mobile only: action buttons on second row */}
-          {isMobile && !isSpecial && (
+          {isMobile && (
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
               {/* Sync + Search */}
               {syncStatus && (
@@ -2776,7 +2777,7 @@ function AppInner() {
                 <span style={{ fontSize:15 }}>🔍</span>
               </button>
               <div style={{ flex:1 }} />
-              {selMode ? (
+              {!isSpecial && (selMode ? (
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   {selected.size > 0 && (
                     <>
@@ -2790,8 +2791,8 @@ function AppInner() {
               ) : (
                 <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
                   onClick={() => setSelMode(true)}>Select</button>
-              )}
-              <div style={{ position:"relative" }}>
+              ))}
+              {!isSpecial && <div style={{ position:"relative" }}>
                 <button style={{ width:36, height:36, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
                   onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
                 {showAddMenu && (
@@ -2804,7 +2805,7 @@ function AppInner() {
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           )}
         </div>
