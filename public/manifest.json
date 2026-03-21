@@ -1,0 +1,17 @@
+{
+  "name": "theNOTES",
+  "short_name": "theNOTES",
+  "description": "Organize your notes with Google Drive sync",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f4fa",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
