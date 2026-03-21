@@ -951,7 +951,8 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
         </div>
       </div>
 
-      <nav ref={containerRef} style={{ padding:"10px 10px", flex:1, overflowY:"auto" }}>
+      <nav ref={containerRef} style={{ padding:"10px 10px", flex:1, overflowY:"auto" }}
+        onClick={() => setShowAdd(false)}>
         {sidebarItems.map((item, index) => {
           const handle = (
             <span
@@ -969,7 +970,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
                 value={item.label}
                 onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i, label:e.target.value} : i))}
                 onClick={e => e.stopPropagation()}
-                style={{ flex:1, background:"transparent", border:"none", outline:"none", fontFamily:"inherit", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,.35)", letterSpacing:"1.8px", textTransform:"uppercase", cursor:"text", minWidth:0 }}
+                style={{ flex:1, background:"transparent", border:"none", outline:"none", fontFamily:"inherit", fontSize:12, fontWeight:700, color:"rgba(255,255,255,.45)", letterSpacing:"1.5px", textTransform:"uppercase", cursor:"text", minWidth:0 }}
                 placeholder="SECTION" />
               <span style={{ color:"rgba(255,120,120,.4)", fontSize:14, cursor:"pointer", lineHeight:1, padding:"0 2px", flexShrink:0 }}
                 onMouseDown={e => { e.stopPropagation(); setSidebarItems(prev => prev.filter(i => i.id !== item.id)); }}>×</span>
@@ -1041,6 +1042,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
         </div>
       )}
 
+      {/* close showAdd when clicking outside */}
+      {showAdd && <div style={{ position:"fixed", inset:0, zIndex:150 }} onClick={() => setShowAdd(false)} />}
+
       {/* ── Settings Panel ── */}
       {showSettings && (
         <div style={{ position:"fixed", inset:0, background:"rgba(10,20,50,.6)", zIndex:800, display:"flex", alignItems:"flex-end", justifyContent:"flex-start" }}
@@ -1061,18 +1065,23 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626" }}>❌ Sync error</div>}
             </div>
 
-            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>App Info</div>
-            <div style={{ background:"#f8faff", borderRadius:12, padding:"4px 0", marginBottom:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>App Features</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20, lineHeight:1.9 }}>
               {[
-                ["📱", "Version", "1.0.0"],
-                ["🌐", "Platform", "Web App"],
-                ["☁️", "Storage", "Google Drive"],
-                ["🔒", "Privacy", "Data stays in your Drive"],
-              ].map(([icon, label, val]) => (
-                <div key={label} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 16px", borderBottom:"1px solid #eef3ff" }}>
-                  <span style={{ fontSize:15 }}>{icon}</span>
-                  <span style={{ flex:1, fontSize:13, color:"#1e3a6e", fontWeight:500 }}>{label}</span>
-                  <span style={{ fontSize:11, color:"#6b8bb5" }}>{val}</span>
+                ["🔐", "Google Login", "Sign in with your Google account — no separate password needed."],
+                ["☁️", "Auto Cloud Save", "All notes are automatically saved to your personal Google Drive in real time."],
+                ["📁", "Private Storage", "Your data is stored only in your own Drive. No one else can access it."],
+                ["📱", "Any Device", "Access from any browser — desktop, tablet, or mobile."],
+                ["📋", "Worklog", "Track daily work and link entries to your project folders."],
+                ["📅", "Calendar View", "See all notes and tasks organized by date."],
+                ["⭐", "Offline Resilient", "Works seamlessly; syncs back to Drive when connected."],
+              ].map(([icon, title, desc]) => (
+                <div key={title} style={{ display:"flex", gap:12, paddingBottom:12, marginBottom:12, borderBottom:"1px solid #eef3ff" }}>
+                  <span style={{ fontSize:18, flexShrink:0, marginTop:1 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:"#1e3a6e", marginBottom:2 }}>{title}</div>
+                    <div style={{ fontSize:12, color:"#6b8bb5", lineHeight:1.6 }}>{desc}</div>
+                  </div>
                 </div>
               ))}
             </div>
