@@ -12,6 +12,7 @@ async function gdriveFind(token) {
     `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+  if (res.status === 401) throw new Error("TOKEN_EXPIRED");
   const data = await res.json();
   return data.files?.[0]?.id || null;
 }
@@ -21,6 +22,7 @@ async function gdriveRead(token, fileId) {
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+  if (res.status === 401) throw new Error("TOKEN_EXPIRED");
   if (!res.ok) return null;
   return res.json();
 }
@@ -1077,7 +1079,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:4 }}>{user?.email || "Sign in to sync your notes"}</div>
               {syncStatus==="saved" && <div style={{ fontSize:11, color:"#16a34a" }}>✅ Google Drive synced</div>}
               {syncStatus==="saving" && <div style={{ fontSize:11, color:"#ca8a04" }}>⏳ Saving...</div>}
-              {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626" }}>❌ Sync error</div>}
+              {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626", cursor:"pointer" }} onClick={onLogin}>❌ Token expired — tap to re-login</div>}
             </div>
 
             <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>App Features</div>
@@ -1169,8 +1171,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ color:"#fff", fontSize:12.5, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
               <div style={{ color:"rgba(255,255,255,.4)", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
-              <div style={{ fontSize:9, marginTop:1, color: syncStatus==="saving"?"#fde68a":syncStatus==="saved"?"#86efac":syncStatus==="error"?"#fca5a5":"transparent" }}>
-                {syncStatus==="saving"?"⏳ Saving...":syncStatus==="saved"?"✅ Synced":syncStatus==="error"?"❌ Save failed":"·"}
+              <div style={{ fontSize:9, marginTop:1, color: syncStatus==="saving"?"#fde68a":syncStatus==="saved"?"#86efac":syncStatus==="error"?"#fca5a5":"transparent", cursor: syncStatus==="error"?"pointer":"default" }}
+                onClick={syncStatus==="error" ? onLogin : undefined}>
+                {syncStatus==="saving"?"⏳ Saving...":syncStatus==="saved"?"✅ Synced":syncStatus==="error"?"❌ Re-login needed":"·"}
               </div>
             </div>
             <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}
@@ -1897,15 +1900,24 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 // ─── App ──────────────────────────────────────────────────
 function AppInner() {
   const isMobile = useIsMobile();
-  // Start empty — data loads from Drive on session restore, or defaults if no session
+  // Load from localStorage first (instant), fallback to initData if nothing saved
   const [sidebarItems, setSidebarItems] = useState(() => {
-    return sessionStorage.getItem("gtoken") ? [] : initSidebar;
+    try {
+      const c = localStorage.getItem("notes_sidebar");
+      return c ? JSON.parse(c) : initSidebar;
+    } catch { return initSidebar; }
   });
-  const [items,        setItems]        = useState(() => {
-    return sessionStorage.getItem("gtoken") ? [] : initItems;
+  const [items, setItems] = useState(() => {
+    try {
+      const c = localStorage.getItem("notes_items");
+      return c ? JSON.parse(c) : initItems;
+    } catch { return initItems; }
   });
-  const [worklogs,     setWorklogs]     = useState(() => {
-    return sessionStorage.getItem("gtoken") ? [] : initWorklogs;
+  const [worklogs, setWorklogs] = useState(() => {
+    try {
+      const c = localStorage.getItem("notes_worklogs");
+      return c ? JSON.parse(c) : initWorklogs;
+    } catch { return initWorklogs; }
   });
   const [activeFolder, setActiveFolder] = useState("f1");
   const [editingFN,    setEditingFN]    = useState(false);
@@ -2005,9 +2017,9 @@ function AppInner() {
           setDriveFileId(fileId);
           const data = await gdriveRead(token, fileId);
           if (data) {
-            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
-            if (data.items)        setItems(data.items);
-            if (data.worklogs)     setWorklogs(data.worklogs);
+            if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
+            if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
+            if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
             setSyncStatus("saved");
           }
         }
@@ -2021,12 +2033,29 @@ function AppInner() {
   const handleLogout = () => {
     sessionStorage.removeItem("gtoken");
     sessionStorage.removeItem("guser");
+    localStorage.removeItem("notes_sidebar");
+    localStorage.removeItem("notes_items");
+    localStorage.removeItem("notes_worklogs");
+    setSidebarItems(initSidebar);
+    setItems(initItems);
+    setWorklogs(initWorklogs);
     setUser(null); setAccessToken(null); setDriveFileId(null);
     setDataLoaded(false); setSyncStatus("");
   };
 
   // ─── Auto-save to Google Drive ───────────────────────────
   const saveTimer = useRef(null);
+
+  // ── Save to localStorage on every change (instant local backup) ──
+  useEffect(() => {
+    try { localStorage.setItem("notes_sidebar", JSON.stringify(sidebarItems)); } catch {}
+  }, [sidebarItems]);
+  useEffect(() => {
+    try { localStorage.setItem("notes_items", JSON.stringify(items)); } catch {}
+  }, [items]);
+  useEffect(() => {
+    try { localStorage.setItem("notes_worklogs", JSON.stringify(worklogs)); } catch {}
+  }, [worklogs]);
 
   // ── Session restore on page reload ───────────────────────
   useEffect(() => {
@@ -2043,18 +2072,27 @@ function AppInner() {
           setDriveFileId(fileId);
           const data = await gdriveRead(savedToken, fileId);
           if (data) {
-            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
-            if (data.items)        setItems(data.items);
-            if (data.worklogs)     setWorklogs(data.worklogs);
+            if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
+            if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
+            if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
           }
           setSyncStatus("saved");
         }
       } catch(e) {
-        console.error("Session restore error:", e);
+        if (e.message === "TOKEN_EXPIRED") {
+          // Token expired — clear session, show login
+          sessionStorage.removeItem("gtoken");
+          sessionStorage.removeItem("guser");
+          setUser(null);
+          setAccessToken(null);
+          setSyncStatus("error");
+          console.warn("Token expired, please re-login.");
+        } else {
+          console.error("Session restore error:", e);
+        }
       } finally {
         setDataLoaded(true);
-        // short delay so React state settles before allowing auto-save
-        setTimeout(() => { isRestoring.current = false; }, 500);
+        setTimeout(() => { isRestoring.current = false; }, 1000);
       }
     })();
   }, []);
@@ -2072,7 +2110,15 @@ function AppInner() {
           if (fid) setDriveFileId(fid);
         }
         setSyncStatus("saved");
-      } catch (e) { console.error("Drive save error:", e); setSyncStatus("error"); }
+      } catch (e) {
+        if (e.message === "TOKEN_EXPIRED" || String(e).includes("401")) {
+          setSyncStatus("error");
+          console.warn("Token expired during save.");
+        } else {
+          console.error("Drive save error:", e);
+          setSyncStatus("error");
+        }
+      }
     }, 2000);
     return () => clearTimeout(saveTimer.current);
   }, [sidebarItems, items, worklogs, accessToken, dataLoaded]);
@@ -2085,19 +2131,6 @@ function AppInner() {
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
-
-  // Show loading screen while restoring session from Drive
-  const hasSession = !!sessionStorage.getItem("gtoken");
-  if (hasSession && !dataLoaded) {
-    return (
-      <div style={{ display:"flex", height:"100vh", alignItems:"center", justifyContent:"center", background:"#f0f4fa", flexDirection:"column", gap:16 }}>
-        <div style={{ fontSize:26, fontWeight:900, letterSpacing:"3px", color:"#2563eb", fontFamily:"'Arial Black',sans-serif" }}>NOTES</div>
-        <div style={{ fontSize:13, color:"#94a3b8" }}>Loading your notes...</div>
-        <div style={{ width:40, height:40, borderRadius:"50%", border:"3px solid #e0eaf8", borderTopColor:"#2563eb", animation:"spin 0.8s linear infinite" }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </div>
-    );
-  }
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
