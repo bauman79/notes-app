@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth";
 
 // ─── Firebase config ──────────────────────────────────────
 const firebaseConfig = {
@@ -2470,39 +2470,69 @@ function AppInner() {
   const restoreItem  = id => setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:undefined, originalFolder:undefined, originalFolderName:undefined} : i));
   const permDel      = id => setItems(prev => prev.filter(i => i.id!==id));
   const emptyTrash   = () => setItems(prev => prev.filter(i => !i.deletedAt));
-  // ─── Firebase Google Login ──────────────────────────────
+  // ─── Firebase Google Login (Redirect 방식) ──────────────
+  const handleLoginResult = async (result) => {
+    if (!result) return false;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken;
+    if (!token) return false;
+    const fbUser = result.user;
+    const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
+    setAccessToken(token);
+    setUser(userInfo);
+    sessionStorage.setItem("gtoken", token);
+    sessionStorage.setItem("guser", JSON.stringify(userInfo));
+    try {
+      const fileId = await gdriveFind(token);
+      if (fileId) {
+        setDriveFileId(fileId);
+        const data = await gdriveRead(token, fileId);
+        if (data) {
+          if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
+          if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
+          if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
+          setSyncStatus("saved");
+        }
+      }
+    } catch (e) { console.error("Drive load error:", e); }
+    setDataLoaded(true);
+    setShowLogin(false);
+    return true;
+  };
+
   const googleLogin = async () => {
     try {
-      const result = await signInWithPopup(firebaseAuth, googleProvider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken;
-      if (!token) throw new Error("Drive access token not received. Please try again.");
-      const fbUser = result.user;
-      const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
-      setAccessToken(token);
-      setUser(userInfo);
-      sessionStorage.setItem("gtoken", token);
-      sessionStorage.setItem("guser", JSON.stringify(userInfo));
+      // 먼저 redirect 결과가 있는지 확인 (페이지 로드 직후)
+      const redirectResult = await getRedirectResult(firebaseAuth);
+      if (redirectResult) {
+        await handleLoginResult(redirectResult);
+        return;
+      }
+      // 없으면 popup 시도, 실패시 redirect
       try {
-        const fileId = await gdriveFind(token);
-        if (fileId) {
-          setDriveFileId(fileId);
-          const data = await gdriveRead(token, fileId);
-          if (data) {
-            if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
-            if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
-            if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
-            setSyncStatus("saved");
-          }
+        const popupResult = await signInWithPopup(firebaseAuth, googleProvider);
+        await handleLoginResult(popupResult);
+      } catch (popupErr) {
+        // popup 차단됐으면 redirect로 fallback
+        if (popupErr.code === "auth/popup-blocked" || popupErr.code === "auth/popup-closed-by-user") {
+          await signInWithRedirect(firebaseAuth, googleProvider);
+          // redirect 후 페이지가 다시 로드됨 — 위의 getRedirectResult가 처리
+        } else {
+          throw popupErr;
         }
-      } catch (e) { console.error("Drive load error:", e); }
-      setDataLoaded(true);
-      setShowLogin(false);
+      }
     } catch (e) {
-      console.error("Login error:", e);
-      if (e.code !== "auth/popup-closed-by-user") alert("Google login failed.");
+      console.error("Login error:", e.code, e.message);
+      alert("Login failed: " + (e.code || e.message));
     }
   };
+
+  // ─── Redirect 결과 처리 (페이지 로드 시) ────────────────
+  useEffect(() => {
+    getRedirectResult(firebaseAuth).then(async (result) => {
+      if (result) await handleLoginResult(result);
+    }).catch(e => console.warn("Redirect result error:", e));
+  }, []);
 
   // ─── Firebase Auth state listener (auto token refresh) ──
   useEffect(() => {
