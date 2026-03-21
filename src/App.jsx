@@ -51,6 +51,42 @@ async function gdriveSave(token, data, existingFileId) {
 }
 
 // ─── Constants ────────────────────────────────────────────
+async function gdriveUploadFile(token, file) {
+  const metadata = { name: file.name, mimeType: file.type };
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(metadata)], { type:"application/json" }));
+  form.append("file", file);
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType",
+    { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:form }
+  );
+  if (res.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (!res.ok) throw new Error("Upload failed");
+  return res.json(); // { id, name, mimeType }
+}
+
+// Create thumbnail dataURL from image file (max 240px)
+function createThumbnail(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 240;
+        const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width  = img.width  * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+
 const T = { HEADER: "header", TODO: "todo", TEXT: "text" };
 const NOTICE_ID = "__notice__";
 const CALENDAR_ID = "__calendar__";
@@ -1787,9 +1823,124 @@ function TableBlock({ table, onUpdate, onDelete }) {
 const tbBtn  = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,color:"#4b6fa8",fontSize:11.5,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:600};
 const tbIcon = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:7,color:"#4b6fa8",cursor:"pointer",fontFamily:"inherit",padding:0,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
 
+// ─── AttachmentItem ───────────────────────────────────────
+function AttachmentItem({ att, onUpdate, onDelete }) {
+  const [lightbox, setLightbox] = useState(false);
+  const isImage = att.type === "image";
+
+  const handleDownload = () => {
+    const token = sessionStorage.getItem("gtoken");
+    if (!token || !att.driveFileId) return;
+    const url = `https://www.googleapis.com/drive/v3/files/${att.driveFileId}?alt=media`;
+    fetch(url, { headers:{ Authorization:`Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = att.name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch(() => alert("Download failed. Please re-login."));
+  };
+
+  if (!isImage) return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"#f0f5ff",
+      borderRadius:8, padding:"8px 12px", marginBottom:4, border:"1px solid #dce8fb" }}>
+      <span style={{ fontSize:20, flexShrink:0 }}>📄</span>
+      <span style={{ flex:1, fontSize:13, color:"#1e3a6e", fontWeight:500,
+        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</span>
+      <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0 }}>
+        {att.size ? (att.size/1024/1024).toFixed(1)+"MB" : ""}
+      </span>
+      <button style={{ background:"#2563eb", color:"#fff", border:"none", borderRadius:6,
+        padding:"4px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, flexShrink:0 }}
+        onClick={handleDownload}>↓</button>
+      <span style={{ color:"#fca5a5", fontSize:16, cursor:"pointer", flexShrink:0 }}
+        onClick={onDelete}>×</span>
+    </div>
+  );
+
+  // Image attachment
+  if (att.collapsed) return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"#f8faff",
+      borderRadius:8, padding:"6px 10px", marginBottom:4, border:"1px solid #e0eaf8" }}>
+      <span style={{ fontSize:16 }}>🖼</span>
+      <span style={{ flex:1, fontSize:12.5, color:"#4b6fa8",
+        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</span>
+      <button title="Expand" style={{ background:"none", border:"1px solid #dce8fb", borderRadius:5,
+        padding:"2px 8px", fontSize:11, cursor:"pointer", color:"#6b8bb5", fontFamily:"inherit" }}
+        onClick={() => onUpdate({ collapsed:false })}>↕</button>
+      <span style={{ color:"#fca5a5", fontSize:16, cursor:"pointer" }} onClick={onDelete}>×</span>
+    </div>
+  );
+
+  return (
+    <>
+      <div style={{ display:"flex", gap:12, background:"#f8faff", borderRadius:10, padding:10,
+        marginBottom:4, border:"1px solid #e0eaf8", alignItems:"flex-start" }}>
+        {/* Thumbnail */}
+        <img src={att.thumbnailDataUrl} alt={att.name}
+          style={{ width:96, height:96, objectFit:"cover", borderRadius:7, cursor:"zoom-in",
+            flexShrink:0, border:"1px solid #e0eaf8" }}
+          onClick={() => setLightbox(true)} />
+        {/* Script area */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:11, color:"#94a3b8", marginBottom:4,
+            overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{att.name}</div>
+          <textarea
+            value={att.script||""}
+            onChange={e => onUpdate({ script:e.target.value })}
+            placeholder="Add notes about this image..."
+            style={{ width:"100%", border:"1px solid #e0eaf8", borderRadius:6, padding:"6px 8px",
+              fontSize:12.5, color:"#1e3a6e", fontFamily:"inherit", resize:"vertical",
+              minHeight:64, background:"#fff", outline:"none", boxSizing:"border-box",
+              lineHeight:1.6 }} />
+        </div>
+        {/* Right actions */}
+        <div style={{ display:"flex", flexDirection:"column", gap:6, flexShrink:0 }}>
+          <button title="Download" style={{ background:"#2563eb", color:"#fff", border:"none",
+            borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:14,
+            display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={handleDownload}>↓</button>
+          <button title="Collapse" style={{ background:"none", border:"1px solid #dce8fb",
+            borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:12, color:"#6b8bb5",
+            display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={() => onUpdate({ collapsed:true })}>↕</button>
+          <button title="Delete" style={{ background:"none", border:"1px solid #fecaca",
+            borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:15, color:"#fca5a5",
+            display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={onDelete}>×</button>
+        </div>
+      </div>
+      {/* Lightbox */}
+      {lightbox && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.85)", zIndex:9000,
+          display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={() => setLightbox(false)}>
+          <img src={att.thumbnailDataUrl} alt={att.name}
+            style={{ maxWidth:"90vw", maxHeight:"88vh", borderRadius:10, objectFit:"contain" }} />
+          <div style={{ position:"absolute", top:16, right:20, display:"flex", gap:8 }}>
+            <button style={{ background:"#2563eb", color:"#fff", border:"none", borderRadius:8,
+              padding:"8px 16px", fontSize:13, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}
+              onClick={e => { e.stopPropagation(); handleDownload(); }}>↓ Download</button>
+            <button style={{ background:"rgba(255,255,255,.15)", color:"#fff", border:"1px solid rgba(255,255,255,.3)",
+              borderRadius:8, padding:"8px 14px", fontSize:18, cursor:"pointer" }}
+              onClick={() => setLightbox(false)}>×</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
-  const [showLM, setShowLM] = useState(false);
-  const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"새 섹션", content:"", open:false }] });
+  const [showLM,      setShowLM]      = useState(false);
+  const [uploading,   setUploading]   = useState(false);
+  const fileInputRef = useRef(null);
+
+  const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
   const updHS  = (id,p) => onUpdate({ hiddenSections:(item.hiddenSections||[]).map(h=>h.id===id?{...h,...p}:h) });
   const delHS  = id => onUpdate({ hiddenSections:(item.hiddenSections||[]).filter(h=>h.id!==id) });
   const addLk  = ({label,url}) => { onUpdate({ links:[...(item.links||[]),{id:`lk${nextId++}`,label,url}] }); setShowLM(false); };
@@ -1797,6 +1948,42 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
   const addTbl = () => onUpdate({ tables:[...(item.tables||[]), mkTable(2,3)] });
   const updTbl = (id,patch) => onUpdate({ tables:(item.tables||[]).map(t=>t.id===id?{...t,...patch}:t) });
   const delTbl = id => onUpdate({ tables:(item.tables||[]).filter(t=>t.id!==id) });
+  const updAtt = (id,p) => onUpdate({ attachments:(item.attachments||[]).map(a=>a.id===id?{...a,...p}:a) });
+  const delAtt = id => onUpdate({ attachments:(item.attachments||[]).filter(a=>a.id!==id) });
+
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!fileInputRef.current) return;
+    fileInputRef.current.value = "";
+    if (!file) return;
+    if (file.size > MAX_SIZE) { alert(`File too large. Max 10MB (selected: ${(file.size/1024/1024).toFixed(1)}MB)`); return; }
+    const token = sessionStorage.getItem("gtoken");
+    if (!token) { alert("Please sign in with Google to upload files."); return; }
+    setUploading(true);
+    try {
+      const isImage = file.type.startsWith("image/");
+      const driveFile = await gdriveUploadFile(token, file);
+      let thumbnailDataUrl = null;
+      if (isImage) thumbnailDataUrl = await createThumbnail(file);
+      const att = {
+        id: `att${nextId++}`,
+        type: isImage ? "image" : "file",
+        name: file.name,
+        size: file.size,
+        driveFileId: driveFile.id,
+        thumbnailDataUrl,
+        script: "",
+        collapsed: false,
+      };
+      onUpdate({ attachments:[...(item.attachments||[]), att] });
+    } catch(err) {
+      alert(err.message === "TOKEN_EXPIRED" ? "Session expired. Please re-login." : `Upload failed: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
   const pad = isMobile ? "14px" : "13px 14px";
   return (
     <>
@@ -1825,12 +2012,58 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
             {item.links.map(lk=>(<LinkItem key={lk.id} lk={lk} onDelete={()=>delLk(lk.id)} />))}
           </div>
         )}
+        {(item.attachments||[]).length > 0 && (
+          <div style={{ padding:"4px 14px 8px 21px", display:"flex", flexDirection:"column", gap:2 }}>
+            {(item.attachments||[]).map(att=>(
+              <AttachmentItem key={att.id} att={att}
+                onUpdate={p=>updAtt(att.id,p)} onDelete={()=>delAtt(att.id)} />
+            ))}
+          </div>
+        )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
           <span style={{ fontSize:10, color:"#a8bcd8" }}>{item.createdAt}</span>
-          <div style={{ display:"flex", gap:6 }}>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>＋ 섹션</button>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();addTbl();}}>⊞ 표</button>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();setShowLM(true);}}>🔗 링크</button>
+          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            {/* § Section */}
+            <button title="Add section" style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                <rect x="1" y="2" width="12" height="2.5" rx="1" fill="currentColor" opacity=".6"/>
+                <rect x="1" y="5.5" width="12" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2"/>
+                <line x1="7" y1="7" x2="7" y2="10" stroke="currentColor" strokeWidth="1.2"/>
+                <line x1="5.5" y1="8.5" x2="8.5" y2="8.5" stroke="currentColor" strokeWidth="1.2"/>
+              </svg>
+            </button>
+            {/* ⊞ Table */}
+            <button title="Add table" style={footBtn} onClick={e=>{e.stopPropagation();addTbl();}}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                <rect x="1" y="1" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <line x1="1" y1="4.5" x2="13" y2="4.5" stroke="currentColor" strokeWidth="1.1"/>
+                <line x1="7" y1="4.5" x2="7" y2="13" stroke="currentColor" strokeWidth="1.1"/>
+              </svg>
+            </button>
+            {/* 🔗 Link */}
+            <button title="Add link" style={footBtn} onClick={e=>{e.stopPropagation();setShowLM(true);}}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                <path d="M5.5 8.5L8.5 5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M3.5 6.5L2.5 7.5a2.5 2.5 0 003.5 3.5l1-1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M6.5 3.5l1-1a2.5 2.5 0 013.5 3.5L9.5 7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </button>
+            {/* 📎 Data (file/image upload) */}
+            <button title="Upload file or image (max 10MB)" style={{...footBtn, position:"relative",
+              ...(uploading?{opacity:.5,pointerEvents:"none"}:{})}}
+              onClick={e=>{e.stopPropagation(); fileInputRef.current?.click();}}>
+              {uploading
+                ? <svg width="13" height="13" viewBox="0 0 14 14" style={{display:"block",animation:"spin .8s linear infinite"}}>
+                    <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeDasharray="20" strokeDashoffset="10"/>
+                  </svg>
+                : <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                    <path d="M2 10v1.5a.5.5 0 00.5.5h9a.5.5 0 00.5-.5V10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                    <path d="M7 1.5v7M4.5 4L7 1.5 9.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+              }
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
+              style={{display:"none"}} onChange={handleFileSelect} />
           </div>
         </div>
       </div>
@@ -1838,7 +2071,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
     </>
   );
 }
-const footBtn = {background:"none",border:"1px dashed #b8cce8",borderRadius:6,color:"#6b8bb5",fontSize:11.5,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontWeight:500};
+const footBtn = {background:"none",border:"1px dashed #b8cce8",borderRadius:6,color:"#6b8bb5",fontSize:11.5,padding:0,cursor:"pointer",fontFamily:"inherit",fontWeight:500,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center"};
 
 
 // ─── SortableList ────────────────────────────────────────
