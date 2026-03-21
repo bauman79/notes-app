@@ -415,15 +415,21 @@ function FloatingToolbar({ tb, exec, tbRef }) {
 function DatePicker({ value, onChange, onClose }) {
   const parse = d => d ? { y:parseInt(d.split(".")[0]), m:parseInt(d.split(".")[1])-1 } : { y:new Date().getFullYear(), m:new Date().getMonth() };
   const [cur, setCur] = useState(() => parse(value));
+  const ref = useRef(null);
   const dim = (y,m) => new Date(y,m+1,0).getDate();
   const fd  = (y,m) => new Date(y,m,1).getDay();
   const pad = n => String(n).padStart(2,"0");
   const cells = [...Array(fd(cur.y,cur.m)).fill(null), ...Array(dim(cur.y,cur.m)).fill(0).map((_,i)=>i+1)];
   const isSel = d => value === `${cur.y}.${pad(cur.m+1)}.${pad(d)}`;
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
-  return (<>
-    <div style={{ position:"fixed", inset:0, zIndex:599 }} onClick={onClose} />
-    <div style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [onClose]);
+  return (
+    <div ref={ref} style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <button onClick={() => setCur(p => p.m===0 ? {y:p.y-1,m:11} : {...p,m:p.m-1})} style={PB}>‹</button>
         <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{cur.y} / {cur.m+1}</span>
@@ -443,18 +449,24 @@ function DatePicker({ value, onChange, onClose }) {
         ))}
       </div>
     </div>
-  </>);
+  );
 }
 
 // ─── MonthPicker ──────────────────────────────────────────
 function MonthPicker({ value, onChange, onClose, label }) {
   const initY = value ? parseInt(value.split(".")[0]) : new Date().getFullYear();
   const [y, setY] = useState(initY);
+  const ref = useRef(null);
   const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
-  return (<>
-    <div style={{ position:"fixed", inset:0, zIndex:699 }} onClick={onClose} />
-    <div style={{ position:"absolute", zIndex:700, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.2)", padding:16, width:210, top:"100%", right:0, marginTop:4, border:"1px solid #e0eaf8" }}>
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [onClose]);
+  return (
+    <div ref={ref} style={{ position:"absolute", zIndex:700, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.2)", padding:16, width:210, top:"100%", right:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       {label && <div style={{ fontSize:11, fontWeight:700, color:"#2563eb", letterSpacing:"1px", marginBottom:10 }}>{label}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <button onClick={() => setY(y-1)} style={PB}>‹</button>
@@ -475,7 +487,7 @@ function MonthPicker({ value, onChange, onClose, label }) {
         })}
       </div>
     </div>
-  </>);
+  );
 }
 
 // ─── WorklogView ──────────────────────────────────────────
