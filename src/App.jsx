@@ -1568,91 +1568,122 @@ function TableBlock({ table, onUpdate, onDelete }) {
   return (
     <div style={{margin:"4px 0 8px",userSelect:"none"}} onClick={e=>e.stopPropagation()}>
 
-      {/* Toolbar */}
-      <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap",marginBottom:6}}>
-        {/* Row/Col controls — hidden in mode */}
+      {/* ── Toolbar ── */}
+      <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:6,flexWrap:"wrap"}}>
+
+        {/* Normal mode: row/col + merge/split/color + delete */}
         {!modeActive && <>
-          {[["＋행",addRow],["－행",delRow],["＋열",addCol],["－열",delCol]].map(([l,fn])=>(
-            <button key={l} style={tbBtn} onClick={fn}>{l}</button>
-          ))}
-          <div style={{width:1,height:16,background:"#e0eaf8",margin:"0 2px"}}/>
+          {/* +row */}
+          <button title="Add row" style={tbIcon} onClick={addRow}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="4" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="1" y="9" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="8" y1="11" x2="8" y2="11" stroke="currentColor" strokeWidth="1.3"/>
+              <line x1="6" y1="11" x2="10" y2="11" stroke="currentColor" strokeWidth="1.3"/>
+              <line x1="8" y1="9" x2="8" y2="13" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          {/* -row */}
+          <button title="Delete row" style={tbIcon} onClick={delRow}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="4" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="1" y="9" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="6" y1="11" x2="10" y2="11" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          <div style={{width:1,height:14,background:"#dce8fb",margin:"0 1px"}}/>
+          {/* +col */}
+          <button title="Add column" style={tbIcon} onClick={addCol}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="9" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="12" y1="5" x2="12" y2="11" stroke="currentColor" strokeWidth="1.3"/>
+              <line x1="9" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          {/* -col */}
+          <button title="Delete column" style={tbIcon} onClick={delCol}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="9" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="10" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          <div style={{width:1,height:14,background:"#dce8fb",margin:"0 1px"}}/>
+          {/* merge */}
+          <button title="Merge cells" style={tbIcon} onClick={()=>enterMode("merge")}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="5" y1="5" x2="11" y2="11" stroke="#2563eb" strokeWidth="1.3"/>
+              <line x1="11" y1="5" x2="5" y2="11" stroke="#2563eb" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          {/* split */}
+          <button title="Split cell" style={{...tbIcon, opacity: mergedKeys.size===0 ? 0.35:1}}
+            disabled={mergedKeys.size===0} onClick={()=>enterMode("split")}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="14" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" strokeWidth="1.3"/>
+              <line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.3"/>
+            </svg>
+          </button>
+          {/* color */}
+          <button title="Cell color" style={tbIcon} onClick={()=>enterMode("color")}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="2" y="13" width="12" height="2" rx="1" fill="#7c3aed"/>
+            </svg>
+          </button>
+          {/* delete table */}
+          <button title="Delete table" style={{...tbIcon,color:"#fca5a5",marginLeft:"auto"}} onClick={onDelete}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4h12M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          </button>
         </>}
 
-        {/* Merge button */}
-        <button
-          style={{...tbBtn,...(mode==="merge"?{background:"#eff6ff",color:"#2563eb",borderColor:"#93c5fd"}:{})}}
-          onClick={()=>enterMode("merge")}>
-          {mode==="merge" ? "합치기 ✕" : "합치기"}
-        </button>
-
-        {/* Split button */}
-        <button
-          style={{...tbBtn,...(mode==="split"?{background:"#fff7ed",color:"#ea580c",borderColor:"#fdba74"}:{}),
-            opacity: mergedKeys.size===0&&mode!=="split" ? 0.4 : 1}}
-          disabled={mergedKeys.size===0&&mode!=="split"}
-          onClick={()=>enterMode("split")}>
-          {mode==="split" ? "나누기 ✕" : "나누기"}
-        </button>
-
-        {/* Shared confirm checkmark */}
+        {/* Mode active: show label + confirm + cancel */}
         {modeActive && (
-          <button
-            style={{...tbBtn,
-              background: canConfirm?"#2563eb":"#e0eaf8",
-              color: canConfirm?"#fff":"#94a3b8",
-              borderColor: canConfirm?"#2563eb":"#e0eaf8",
-              fontSize:15, padding:"4px 10px",
-              cursor: canConfirm?"pointer":"default",
-              transition:"all .15s"}}
-            onClick={canConfirm ? confirm : undefined}
-            title="확인">✓</button>
-        )}
-
-        {/* Color mode button */}
-        <div style={{width:1,height:16,background:"#e0eaf8",margin:"0 2px"}}/>
-        <button
-          style={{...tbBtn,...(mode==="color"?{background:"#fdf4ff",color:"#7c3aed",borderColor:"#c4b5fd"}:{})}}
-          onClick={()=>enterMode("color")}>
-          {mode==="color" ? "색 ✕" : "색"}
-        </button>
-
-        {/* Color picker — only in color mode */}
-        {mode==="color" && (
-          <div style={{display:"flex",alignItems:"center",gap:5,padding:"2px 8px",background:"#fdf4ff",borderRadius:8,border:"1px solid #e9d5ff"}}>
-            {BG_COLORS.map(c=>{
-              const isNone = c==="none";
-              const isSel  = pendingBg===c;
-              return (
-                <div key={c} onClick={()=>setPendingBg(c)}
-                  title={isNone?"색 없음":c}
-                  style={{
-                    width:20,height:20,borderRadius:4,cursor:"pointer",flexShrink:0,
-                    background: isNone?"#fff":c,
-                    border: isSel?"2.5px solid #7c3aed": isNone?"2px dashed #c2d0e8":"2px solid rgba(0,0,0,.07)",
-                    boxShadow: isSel?"0 0 0 1px #7c3aed":"none",
-                    position:"relative",
-                  }}>
-                  {isNone && <span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#94a3b8",fontWeight:700,lineHeight:1}}>✕</span>}
-                </div>
-              );
-            })}
+          <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
+            <span style={{fontSize:11,fontWeight:600,color:mode==="merge"?"#2563eb":mode==="split"?"#ea580c":"#7c3aed",flex:1}}>
+              {mode==="merge" ? `⊞ Merge — select cells (${selCells.size})` :
+               mode==="split" ? "⊟ Split — select a merged cell" :
+               `🎨 Color — pick color, then select cells (${selCells.size})`}
+            </span>
+            {/* color swatches inline */}
+            {mode==="color" && (
+              <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                {BG_COLORS.map(c=>{
+                  const isNone=c==="none", isSel=pendingBg===c;
+                  return (
+                    <div key={c} onClick={()=>setPendingBg(c)} title={isNone?"Remove color":c}
+                      style={{width:18,height:18,borderRadius:3,cursor:"pointer",flexShrink:0,
+                        background:isNone?"#fff":c,position:"relative",
+                        border:isSel?"2.5px solid #7c3aed":isNone?"1.5px dashed #c2d0e8":"1.5px solid rgba(0,0,0,.08)",
+                        boxShadow:isSel?"0 0 0 1px #7c3aed":"none"}}>
+                      {isNone&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#94a3b8",fontWeight:700}}>✕</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* confirm */}
+            <button style={{...tbIcon,
+              background:canConfirm?"#2563eb":"#e8eef8",
+              color:canConfirm?"#fff":"#94a3b8",
+              border:canConfirm?"1px solid #2563eb":"1px solid #e0eaf8",
+              fontSize:15,width:28,height:28,borderRadius:7,
+              cursor:canConfirm?"pointer":"default",transition:"all .12s"}}
+              onClick={canConfirm?confirm:undefined} title="Apply">✓</button>
+            {/* cancel */}
+            <button style={{...tbIcon,fontSize:15,width:28,height:28,borderRadius:7}}
+              onClick={()=>enterMode(mode)} title="Cancel">✕</button>
           </div>
         )}
-
-        <button style={{...tbBtn,marginLeft:"auto",color:"#fca5a5",borderColor:"#fecaca"}} onClick={onDelete}>표 삭제</button>
       </div>
-
-      {/* Mode hint */}
-      {mode && (
-        <div style={{fontSize:11,color:mode==="merge"?"#2563eb":mode==="color"?"#7c3aed":"#ea580c",marginBottom:6,fontWeight:500,padding:"4px 8px",background:mode==="merge"?"#eff6ff":mode==="color"?"#fdf4ff":"#fff7ed",borderRadius:6,display:"inline-block"}}>
-          {mode==="merge"
-            ? `셀을 클릭해서 선택 (${selCells.size}개 선택됨) → ✓ 로 합치기`
-            : mode==="color"
-            ? `색 선택 후 셀 클릭 (${selCells.size}개 선택됨) → ✓ 로 적용`
-            : mergedKeys.size===0 ? "합쳐진 셀이 없습니다"
-            : `합쳐진 셀을 클릭해서 선택 → ✓ 로 나누기`}
-        </div>
-      )}
 
       {/* Table */}
       <div style={{overflowX:"auto"}}>
@@ -1705,7 +1736,8 @@ function TableBlock({ table, onUpdate, onDelete }) {
     </div>
   );
 }
-const tbBtn = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,color:"#4b6fa8",fontSize:11.5,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:600};
+const tbBtn  = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,color:"#4b6fa8",fontSize:11.5,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:600};
+const tbIcon = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:7,color:"#4b6fa8",cursor:"pointer",fontFamily:"inherit",padding:0,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
 
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
   const [showLM, setShowLM] = useState(false);
