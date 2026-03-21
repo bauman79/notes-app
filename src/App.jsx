@@ -1714,10 +1714,13 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, items, setItems);
 
-  // Build header sections with flat indices
+  // Build header sections — exclude done todos from main list
+  const activeItems = items.filter(i => !(i.type === T.TODO && i.done));
+  const doneTodos   = items.filter(i => i.type === T.TODO && i.done);
   const sections = [];
   let cur = null;
-  items.forEach((item, idx) => {
+  activeItems.forEach((item) => {
+    const idx = items.indexOf(item);
     if (item.type === T.HEADER) {
       cur = { header: item, hIdx: idx, children: [] };
       sections.push(cur);
@@ -1781,6 +1784,39 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
           ))}
         </div>
       ))}
+      {/* ── Completed section ── */}
+      {doneTodos.length > 0 && (
+        <CompletedSection doneTodos={doneTodos} upd={upd} isMobile={isMobile} />
+      )}
+    </div>
+  );
+}
+
+function CompletedSection({ doneTodos, upd, isMobile }) {
+  const [open, setOpen] = useState(false);
+  const fs = isMobile ? 14 : 13.5;
+  return (
+    <div style={{ marginTop:16, borderTop:"1px solid #e8eef8", paddingTop:8 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", padding:"6px 4px", userSelect:"none" }}
+        onClick={() => setOpen(v => !v)}>
+        <span style={{ display:"inline-block", transition:"transform .2s", transform:open?"rotate(0deg)":"rotate(-90deg)", color:"#94a3b8", fontSize:13 }}>▾</span>
+        <span style={{ fontSize:12, fontWeight:700, color:"#94a3b8", letterSpacing:"0.3px" }}>
+          Completed ({doneTodos.length})
+        </span>
+      </div>
+      {open && (
+        <div style={{ paddingLeft:4, marginTop:4 }}>
+          {doneTodos.map(item => (
+            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#f8faff", borderRadius:10, padding:"10px 12px", marginBottom:4, opacity:.65, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
+              <div style={{ borderRadius:5, border:"1.5px solid #2563eb", background:"#2563eb", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:18, height:18 }}
+                onClick={() => upd(item.id, { done:false })}>
+                <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>
+              </div>
+              <span style={{ flex:1, fontSize:fs, color:"#96acc8", textDecoration:"line-through", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>{item.title||"(no title)"}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1801,15 +1837,15 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete }) {
   );
 
   if (item.type === T.TODO) return (
-    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
-      <div style={{ padding:isMobile?"14px":"12px 14px", display:"flex", alignItems:"center", gap:10, width:"100%", boxSizing:"border-box" }}>
-        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?21:18, height:isMobile?21:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
+    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", overflow:"hidden", ...drag }} {...bp}>
+      <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
+        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
-        <input style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
-          value={item.title} placeholder="할 일 입력..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-        <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>
+        <input style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+          value={item.title} placeholder="Add a task..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
+        {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
         <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
@@ -2110,9 +2146,8 @@ function AppInner() {
               <SortableList
                 items={sortableFlat}
                 setItems={newArr => setItems(prev => {
-                  const folderItems = newArr;
                   const others = prev.filter(i => i.deletedAt || i.folder !== activeFolder);
-                  return [...others, ...folderItems];
+                  return [...others, ...newArr];
                 })}
                 getKey={i => i.id}
                 collapsedHdrs={collapsedHdrs}
