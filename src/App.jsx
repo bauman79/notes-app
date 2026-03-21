@@ -1370,7 +1370,7 @@ function LinkItem({ lk, onDelete }) {
       onClick={e => e.stopPropagation()}>
       <span style={{ fontSize:12 }}>{isYT ? "▶" : "🔗"}</span>
       <span style={{ color: isYT ? "#c53030" : "#2563eb", fontWeight:600, cursor:"pointer" }}
-        onClick={() => window.open(lk.url, "_blank", "noopener,noreferrer")}>
+        onClick={() => { const u = /^https?:\/\//i.test(lk.url) ? lk.url : "https://" + lk.url; window.open(u, "_blank", "noopener,noreferrer"); }}>
         {lk.label}
       </span>
       <span style={{ color:"#c0cfe8", cursor:"pointer", fontSize:14, lineHeight:1 }} onClick={onDelete}>×</span>
@@ -1437,7 +1437,9 @@ function LinkModal({ onConfirm, onClose }) {
 
   const submit = () => {
     if (!url) return;
-    onConfirm({ label: label.trim() || url, url: url.trim() });
+    const rawUrl = url.trim();
+    const normalizedUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : "https://" + rawUrl;
+    onConfirm({ label: label.trim() || rawUrl, url: normalizedUrl });
   };
 
   return (
