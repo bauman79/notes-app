@@ -1978,15 +1978,19 @@ function AppInner() {
     onSuccess: async (tokenResponse) => {
       const token = tokenResponse.access_token;
       setAccessToken(token);
+      let userInfo = { name: "User", email: "", picture: "" };
       try {
         const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const info = await res.json();
-        setUser({ name: info.name, email: info.email, picture: info.picture });
+        userInfo = { name: info.name, email: info.email, picture: info.picture };
       } catch (e) {
-        setUser({ name: "User", email: "" });
+        console.error("Userinfo error:", e);
       }
+      setUser(userInfo);
+      sessionStorage.setItem("gtoken", token);
+      sessionStorage.setItem("guser", JSON.stringify(userInfo));
       try {
         const fileId = await gdriveFind(token);
         if (fileId) {
@@ -2007,12 +2011,43 @@ function AppInner() {
   });
 
   const handleLogout = () => {
+    sessionStorage.removeItem("gtoken");
+    sessionStorage.removeItem("guser");
     setUser(null); setAccessToken(null); setDriveFileId(null);
     setDataLoaded(false); setSyncStatus("");
   };
 
   // ─── Auto-save to Google Drive ───────────────────────────
   const saveTimer = useRef(null);
+
+  // ── Session restore on page reload ───────────────────────
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem("gtoken");
+    const savedUser  = sessionStorage.getItem("guser");
+    if (!savedToken || !savedUser) return;
+    setAccessToken(savedToken);
+    setUser(JSON.parse(savedUser));
+    (async () => {
+      try {
+        const fileId = await gdriveFind(savedToken);
+        if (fileId) {
+          setDriveFileId(fileId);
+          const data = await gdriveRead(savedToken, fileId);
+          if (data) {
+            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
+            if (data.items)        setItems(data.items);
+            if (data.worklogs)     setWorklogs(data.worklogs);
+          }
+          setSyncStatus("saved");
+        }
+      } catch(e) {
+        console.error("Session restore error:", e);
+      } finally {
+        setDataLoaded(true);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     if (!accessToken || !dataLoaded) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
