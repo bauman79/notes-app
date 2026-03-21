@@ -1879,26 +1879,28 @@ function AppInner() {
   useEffect(() => {
     const savedToken = sessionStorage.getItem("gtoken");
     const savedUser  = sessionStorage.getItem("guser");
-    if (savedToken && savedUser) {
-      setAccessToken(savedToken);
-      setUser(JSON.parse(savedUser));
-      gdriveFind(savedToken).then(fileId => {
+    if (!savedToken || !savedUser) return;
+    setAccessToken(savedToken);
+    setUser(JSON.parse(savedUser));
+    (async () => {
+      try {
+        const fileId = await gdriveFind(savedToken);
         if (fileId) {
           setDriveFileId(fileId);
-          gdriveRead(savedToken, fileId).then(data => {
-            if (data) {
-              if (data.sidebarItems) setSidebarItems(data.sidebarItems);
-              if (data.items)        setItems(data.items);
-              if (data.worklogs)     setWorklogs(data.worklogs);
-            }
-            setDataLoaded(true);
-            setSyncStatus("saved");
-          });
-        } else {
-          setDataLoaded(true);
+          const data = await gdriveRead(savedToken, fileId);
+          if (data) {
+            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
+            if (data.items)        setItems(data.items);
+            if (data.worklogs)     setWorklogs(data.worklogs);
+          }
+          setSyncStatus("saved");
         }
-      });
-    }
+      } catch(e) {
+        console.error("Session restore error:", e);
+      } finally {
+        setDataLoaded(true);
+      }
+    })();
   }, []);
   useEffect(() => {
     if (!accessToken || !dataLoaded) return;
