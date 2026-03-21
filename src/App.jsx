@@ -2625,7 +2625,8 @@ function AppInner() {
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
         {/* Top bar */}
         <div style={{ background:"#f0f4fa", padding:isMobile?"16px 14px 10px":"26px 36px 14px" }}>
-          {/* Title row */}
+
+          {/* Row 1: hamburger + folder title */}
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: isMobile ? 10 : 0 }}>
             {isMobile && (
               <button style={{ width:36, height:36, borderRadius:10, background:"rgba(37,99,235,.08)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}
@@ -2647,127 +2648,109 @@ function AppInner() {
                 {isCalendar ? `${liveItems.length} total` : isTrash ? `${trashItems.length} items` : isWorklog ? `${worklogs.length} entries` : `${visibleItems.length} items`}
               </div>
             </div>
-            {/* Desktop only: action buttons inline */}
-            {!isMobile && <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            {/* Sync status indicator */}
-            {syncStatus && (
-              <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error — tap to re-login"}
-                style={{ width:34, height:34, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center",
-                  background: syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)",
-                  cursor: syncStatus==="error"?"pointer":"default" }}
-                onClick={syncStatus==="error" ? () => setShowLogin(true) : undefined}>
-                <span style={{ fontSize:16 }}>
-                  {syncStatus==="saving"?"⏳":syncStatus==="saved"?"☁️":"❌"}
-                </span>
-              </div>
-            )}
-            {/* Global search button */}
-            <button style={{ width:34, height:34, borderRadius:9, background:"rgba(37,99,235,.07)", border:"none",
-              cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
-              title="Search all notes"
-              onClick={() => setShowGlobalSearch(v => !v)}>
-              <span style={{ fontSize:16 }}>🔍</span>
-            </button>
-            {/* Global search panel */}
-            {showGlobalSearch && (
-              <div style={{ position:"fixed", inset:0, background:"rgba(15,32,68,.35)", zIndex:700,
-                display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:60 }}
-                onClick={() => { setShowGlobalSearch(false); setGlobalQuery(""); }}>
-                <div style={{ background:"#fff", borderRadius:16, padding:20, width:"min(500px,90vw)",
-                  boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
-                  onClick={e => e.stopPropagation()}>
-                  <input autoFocus
-                    style={{ width:"100%", padding:"12px 16px", borderRadius:10, border:"1.5px solid #e0eaf8",
-                      fontSize:15, color:"#1e3a6e", outline:"none", fontFamily:"inherit",
-                      boxSizing:"border-box", marginBottom:12 }}
-                    placeholder="Search all notes..."
-                    value={globalQuery}
-                    onChange={e => setGlobalQuery(e.target.value)} />
-                  {globalQuery.trim() && (() => {
-                    const q = globalQuery.trim().toLowerCase();
-                    const results = liveItems.filter(i =>
-                      (i.title||"").toLowerCase().includes(q) ||
-                      (i.body||"").toLowerCase().includes(q)
-                    );
-                    return results.length === 0
-                      ? <div style={{ textAlign:"center", color:"#94a3b8", padding:"20px 0", fontSize:13 }}>No results</div>
-                      : <div style={{ maxHeight:320, overflowY:"auto" }}>
-                          {results.map(item => {
-                            const folder = folders.find(f => f.id===item.folder);
-                            return (
-                              <div key={item.id}
-                                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px",
-                                  borderRadius:9, cursor:"pointer", marginBottom:2 }}
-                                onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
-                                onMouseLeave={e => e.currentTarget.style.background="transparent"}
-                                onClick={() => {
-                                  if (folder) setActiveFolder(item.folder);
-                                  setShowGlobalSearch(false); setGlobalQuery("");
-                                }}>
-                                <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, width:14 }}>
-                                  {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
-                                </span>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(untitled)"}</div>
-                                  {folder && <div style={{ fontSize:11, color:"#94a3b8", marginTop:1 }}>{folder.name}</div>}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>;
-                  })()}
-                </div>
-              </div>
-            )}
-            {!isSpecial && (
-              selMode ? (
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" }} onClick={togAll}>
-                    <div style={{ width:18, height:18, borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, ...(allSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}>
-                      {allSel && "✓"}
-                    </div>
-                    <span style={{ fontSize:12, color:"#4b6fa8" }}>All</span>
+            {/* Desktop only: inline buttons */}
+            {!isMobile && (
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {syncStatus && (
+                  <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error — tap to re-login"}
+                    style={{ width:34, height:34, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center", background:syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)", cursor:syncStatus==="error"?"pointer":"default" }}
+                    onClick={syncStatus==="error" ? () => setShowLogin(true) : undefined}>
+                    <span style={{ fontSize:16 }}>{syncStatus==="saving"?"⏳":syncStatus==="saved"?"☁️":"❌"}</span>
                   </div>
-                  {selected.size > 0 && (
-                    <>
-                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
-                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
-                    </>
-                  )}
-                  <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
-                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
-                </div>
-              ) : (
-                <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
-                  onClick={() => setSelMode(true)}>Select</button>
-              )
-            )}
-            {!isSpecial && !selMode && (
-              <div style={{ position:"relative" }}>
-                <button style={{ width:38, height:38, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
-                  onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
-                {showAddMenu && (
-                  <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:46 }}>
-                    {[{type:T.HEADER,label:"Header",icon:"▬"},{type:T.TODO,label:"To-do",icon:"☐"},{type:T.TEXT,label:"Text",icon:"T"}].map(o => (
-                      <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
-                        onClick={() => addItem(o.type)}>
-                        <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
+                )}
+                <button style={{ width:34, height:34, borderRadius:9, background:"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                  title="Search all notes"
+                  onClick={() => setShowGlobalSearch(v => !v)}>
+                  <span style={{ fontSize:16 }}>🔍</span>
+                </button>
+                {showGlobalSearch && (
+                  <div style={{ position:"fixed", inset:0, background:"rgba(15,32,68,.35)", zIndex:700, display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:60 }}
+                    onClick={() => { setShowGlobalSearch(false); setGlobalQuery(""); }}>
+                    <div style={{ background:"#fff", borderRadius:16, padding:20, width:"min(500px,90vw)", boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
+                      onClick={e => e.stopPropagation()}>
+                      <input autoFocus
+                        style={{ width:"100%", padding:"12px 16px", borderRadius:10, border:"1.5px solid #e0eaf8", fontSize:15, color:"#1e3a6e", outline:"none", fontFamily:"inherit", boxSizing:"border-box", marginBottom:12 }}
+                        placeholder="Search all notes..."
+                        value={globalQuery}
+                        onChange={e => setGlobalQuery(e.target.value)} />
+                      {globalQuery.trim() && (() => {
+                        const q = globalQuery.trim().toLowerCase();
+                        const results = liveItems.filter(i => (i.title||"").toLowerCase().includes(q) || (i.body||"").toLowerCase().includes(q));
+                        return results.length === 0
+                          ? <div style={{ textAlign:"center", color:"#94a3b8", padding:"20px 0", fontSize:13 }}>No results</div>
+                          : <div style={{ maxHeight:320, overflowY:"auto" }}>
+                              {results.map(item => {
+                                const folder = folders.find(f => f.id===item.folder);
+                                return (
+                                  <div key={item.id}
+                                    style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:9, cursor:"pointer", marginBottom:2 }}
+                                    onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
+                                    onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                                    onClick={() => { if (folder) setActiveFolder(item.folder); setShowGlobalSearch(false); setGlobalQuery(""); }}>
+                                    <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, width:14 }}>
+                                      {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
+                                    </span>
+                                    <div style={{ flex:1, minWidth:0 }}>
+                                      <div style={{ fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(untitled)"}</div>
+                                      {folder && <div style={{ fontSize:11, color:"#94a3b8", marginTop:1 }}>{folder.name}</div>}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>;
+                      })()}
+                    </div>
+                  </div>
+                )}
+                {!isSpecial && (
+                  selMode ? (
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer" }} onClick={togAll}>
+                        <div style={{ width:18, height:18, borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, ...(allSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}>
+                          {allSel && "✓"}
+                        </div>
+                        <span style={{ fontSize:12, color:"#4b6fa8" }}>All</span>
                       </div>
-                    ))}
+                      {selected.size > 0 && (
+                        <>
+                          <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                          <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
+                        </>
+                      )}
+                      <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
+                        onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
+                      onClick={() => setSelMode(true)}>Select</button>
+                  )
+                )}
+                {!isSpecial && !selMode && (
+                  <div style={{ position:"relative" }}>
+                    <button style={{ width:38, height:38, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
+                      onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
+                    {showAddMenu && (
+                      <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:46 }}>
+                        {[{type:T.HEADER,label:"Header",icon:"▬"},{type:T.TODO,label:"To-do",icon:"☐"},{type:T.TEXT,label:"Text",icon:"T"}].map(o => (
+                          <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+                            onClick={() => addItem(o.type)}>
+                            <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
-            </div>}
-          {/* Mobile only: action buttons on second row */}
+          </div>
+
+          {/* Row 2 (mobile only): sync + search + select + add */}
           {isMobile && (
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-              {/* Sync + Search */}
               {syncStatus && (
                 <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error"}
-                  style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
-                    background:syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)",
-                    cursor:syncStatus==="error"?"pointer":"default" }}
+                  style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", background:syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)", cursor:syncStatus==="error"?"pointer":"default" }}
                   onClick={syncStatus==="error"?()=>setShowLogin(true):undefined}>
                   <span style={{ fontSize:15 }}>{syncStatus==="saving"?"⏳":syncStatus==="saved"?"☁️":"❌"}</span>
                 </div>
@@ -2777,37 +2760,42 @@ function AppInner() {
                 <span style={{ fontSize:15 }}>🔍</span>
               </button>
               <div style={{ flex:1 }} />
-              {!isSpecial && (selMode ? (
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  {selected.size > 0 && (
-                    <>
-                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
-                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
-                    </>
-                  )}
-                  <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
-                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
-                </div>
-              ) : (
-                <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
-                  onClick={() => setSelMode(true)}>Select</button>
-              ))}
-              {!isSpecial && <div style={{ position:"relative" }}>
-                <button style={{ width:36, height:36, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
-                  onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
-                {showAddMenu && (
-                  <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:44 }}>
-                    {[{type:T.HEADER,label:"Header",icon:"▬"},{type:T.TODO,label:"To-do",icon:"☐"},{type:T.TEXT,label:"Text",icon:"T"}].map(o => (
-                      <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
-                        onClick={() => addItem(o.type)}>
-                        <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
-                      </div>
-                    ))}
+              {!isSpecial && (
+                selMode ? (
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    {selected.size > 0 && (
+                      <>
+                        <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                        <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
+                      </>
+                    )}
+                    <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
+                      onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
                   </div>
-                )}
-              </div>}
+                ) : (
+                  <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
+                    onClick={() => setSelMode(true)}>Select</button>
+                )
+              )}
+              {!isSpecial && (
+                <div style={{ position:"relative" }}>
+                  <button style={{ width:36, height:36, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
+                    onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
+                  {showAddMenu && (
+                    <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:44 }}>
+                      {[{type:T.HEADER,label:"Header",icon:"▬"},{type:T.TODO,label:"To-do",icon:"☐"},{type:T.TEXT,label:"Text",icon:"T"}].map(o => (
+                        <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+                          onClick={() => addItem(o.type)}>
+                          <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
         </div>
 
         {/* Content area */}
