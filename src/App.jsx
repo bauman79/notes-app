@@ -558,7 +558,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           </button>
           {showFilter && (
             <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",zIndex:400,minWidth:170,overflow:"hidden"}}>
-              <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>폴더 필터</div>
+              <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Folder Filter</div>
               {/* 전체 */}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",cursor:"pointer",borderBottom:"1px solid #f0f4fa",background:allSelected?"#eff6ff":"transparent"}}
                 onClick={()=>setFilterFolders(new Set())}>
@@ -585,10 +585,10 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
 
         <div style={{position:"relative"}}>
           <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="년월로 이동"/>}
+          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/>}
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
-        {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>삭제({selected.size})</button>}
+        {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>Delete ({selected.size})</button>}
         <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ Add</button>
       </div>
 
@@ -850,7 +850,7 @@ function CalendarView({ items, folders }) {
           </button>
           {showFilter && (
             <div style={{ position:"absolute", top:"100%", left:0, marginTop:4, background:"#fff", borderRadius:12, boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8", zIndex:400, minWidth:170, overflow:"hidden" }}>
-              <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>폴더 필터</div>
+              <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Folder Filter</div>
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #f0f4fa", background:allSelected?"#eff6ff":"transparent" }}
                 onClick={() => setFilterFolders(new Set())}>
                 <div style={{ width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:allSelected?"#2563eb":"#c2d0e8",background:allSelected?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
@@ -877,7 +877,7 @@ function CalendarView({ items, folders }) {
         {/* Month nav */}
         <div style={{ position:"relative" }}>
           <button style={wBtn} onClick={() => setShowNav(v => !v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={() => setShowNav(false)} label="년월로 이동" />}
+          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={() => setShowNav(false)} label="Go to month" />}
         </div>
 
         {/* Excel download */}
@@ -969,7 +969,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
       {trash.length === 0 && (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", color:"#b0c4de" }}>
           <div style={{ fontSize:32, marginBottom:10 }}>🗑</div>
-          <div style={{ fontSize:13 }}>휴지통이 비어있습니다.</div>
+          <div style={{ fontSize:13 }}>Trash is empty.</div>
         </div>
       )}
       {trash.map(item => {
@@ -992,7 +992,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
           </div>
         );
       })}
-      <div style={{ fontSize:11, color:"#c0c8d8", textAlign:"center", marginTop:16, lineHeight:1.6 }}>{TRASH_DAYS}일 후 자동 영구 삭제됩니다.</div>
+      <div style={{ fontSize:11, color:"#c0c8d8", textAlign:"center", marginTop:16, lineHeight:1.6 }}>Items are permanently deleted after {TRASH_DAYS} days.</div>
     </div>
   );
 }
@@ -1194,7 +1194,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Account</div>
             <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
               <div style={{ fontSize:13, color:"#1e3a6e", fontWeight:600, marginBottom:4 }}>{user?.name || "Not signed in"}</div>
-              <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:4 }}>{user?.email || "Sign in to sync your notes"}</div>
+              <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:4 }}>{user?.email || "Sign in to syncnc your notes"}</div>
               {syncStatus==="saved" && <div style={{ fontSize:11, color:"#16a34a" }}>✅ Google Drive synced</div>}
               {syncStatus==="saving" && <div style={{ fontSize:11, color:"#ca8a04" }}>⏳ Saving...</div>}
               {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626", cursor:"pointer" }} onClick={onLogin}>❌ Token expired — tap to re-login</div>}
@@ -1429,7 +1429,7 @@ function LinkModal({ onConfirm, onClose }) {
             onKeyDown={e => e.key==="Enter" && submit()}
           />
           {ytDetected && (
-            <div style={{ fontSize:11, color:"#e53e3e", marginTop:4, fontWeight:500 }}>▶ YouTube video detected지됨</div>
+            <div style={{ fontSize:11, color:"#e53e3e", marginTop:4, fontWeight:500 }}>▶ YouTube video detected</div>
           )}
         </div>
 
@@ -2761,7 +2761,7 @@ function AppInner() {
               {visibleItems.length === 0 && (
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", color:"#b0c4de" }}>
                   <div style={{ fontSize:36, marginBottom:10 }}>★</div>
-                  <div style={{ fontSize:13 }}>별표 항목이 없습니다.</div>
+                  <div style={{ fontSize:13 }}>No starred items.</div>
                 </div>
               )}
             </>
@@ -2838,7 +2838,7 @@ function AppInner() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Sign in with Google</div>
-            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>Sign in to sync your notes with Google Drive에<br/>자동 동기화됩니다. (현재 데모 모드)</p>
+            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>Sign in to sync your notes with Google Drive automatically.</p>
             <button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"13px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
               onClick={() => { setShowLogin(false); googleLogin(); }}>Continue with Google</button>
             <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
