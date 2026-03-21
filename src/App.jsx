@@ -2091,20 +2091,25 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 // ─── App ──────────────────────────────────────────────────
 function AppInner() {
   const isMobile = useIsMobile();
-  // Load from localStorage first (instant), fallback to initData if nothing saved
+  // Load from localStorage ONLY if logged in (sessionStorage token exists)
+  // If not logged in → show clean initData, not someone's private data
+  const isLoggedInOnLoad = !!sessionStorage.getItem("gtoken");
   const [sidebarItems, setSidebarItems] = useState(() => {
+    if (!isLoggedInOnLoad) return initSidebar;
     try {
       const c = localStorage.getItem("notes_sidebar");
       return c ? JSON.parse(c) : initSidebar;
     } catch { return initSidebar; }
   });
   const [items, setItems] = useState(() => {
+    if (!isLoggedInOnLoad) return initItems;
     try {
       const c = localStorage.getItem("notes_items");
       return c ? JSON.parse(c) : initItems;
     } catch { return initItems; }
   });
   const [worklogs, setWorklogs] = useState(() => {
+    if (!isLoggedInOnLoad) return initWorklogs;
     try {
       const c = localStorage.getItem("notes_worklogs");
       return c ? JSON.parse(c) : initWorklogs;
