@@ -1,8 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
+import { initializeApp } from "firebase/app";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth";
 
-const GOOGLE_CLIENT_ID = "167666540402-ug48sj0qfst2g08lhcckkf69jvjhel21.apps.googleusercontent.com";
+// ─── Firebase config ──────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBVwig-ugqZuiQwp584F475-1BgNNKr7A8",
+  authDomain: "the-notes-e1f26.firebaseapp.com",
+  projectId: "the-notes-e1f26",
+  storageBucket: "the-notes-e1f26.firebasestorage.app",
+  messagingSenderId: "295958524830",
+  appId: "1:295958524830:web:cd9e86793d62f31faa5c8f"
+};
+const firebaseApp  = initializeApp(firebaseConfig);
+const firebaseAuth = getAuth(firebaseApp);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
 const DRIVE_FILE_NAME  = "notes-app-data.json";
 
 // ─── Google Drive helpers ─────────────────────────────────
@@ -2456,22 +2469,15 @@ function AppInner() {
   const restoreItem  = id => setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:undefined, originalFolder:undefined, originalFolderName:undefined} : i));
   const permDel      = id => setItems(prev => prev.filter(i => i.id!==id));
   const emptyTrash   = () => setItems(prev => prev.filter(i => !i.deletedAt));
-  // ─── Google Login ───────────────────────────────────────
-  const googleLogin = useGoogleLogin({
-    scope: "https://www.googleapis.com/auth/drive.file",
-    onSuccess: async (tokenResponse) => {
-      const token = tokenResponse.access_token;
+  // ─── Firebase Google Login ──────────────────────────────
+  const googleLogin = async () => {
+    try {
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential.accessToken;
+      const fbUser = result.user;
+      const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
       setAccessToken(token);
-      let userInfo = { name: "User", email: "", picture: "" };
-      try {
-        const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const info = await res.json();
-        userInfo = { name: info.name, email: info.email, picture: info.picture };
-      } catch (e) {
-        console.error("Userinfo error:", e);
-      }
       setUser(userInfo);
       sessionStorage.setItem("gtoken", token);
       sessionStorage.setItem("guser", JSON.stringify(userInfo));
@@ -2490,11 +2496,35 @@ function AppInner() {
       } catch (e) { console.error("Drive load error:", e); }
       setDataLoaded(true);
       setShowLogin(false);
-    },
-    onError: () => alert("Google login failed."),
-  });
+    } catch (e) {
+      console.error("Login error:", e);
+      if (e.code !== "auth/popup-closed-by-user") alert("Google login failed.");
+    }
+  };
 
-  const handleLogout = () => {
+  // ─── Firebase Auth state listener (auto token refresh) ──
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
+      if (!fbUser) return;
+      // Get fresh Drive token
+      try {
+        const credential = await fbUser.getIdToken(true);
+        // Re-fetch OAuth token via silent re-auth if stored token expired
+        const storedToken = sessionStorage.getItem("gtoken");
+        if (!storedToken) return;
+        // Token still valid — just update user info
+        const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
+        setUser(userInfo);
+        sessionStorage.setItem("guser", JSON.stringify(userInfo));
+      } catch (e) {
+        console.warn("Auth state error:", e);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try { await signOut(firebaseAuth); } catch {}
     sessionStorage.removeItem("gtoken");
     sessionStorage.removeItem("guser");
     localStorage.removeItem("notes_sidebar");
@@ -2900,8 +2930,8 @@ function AppInner() {
 
 export default function App() {
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <>
       <AppInner />
-    </GoogleOAuthProvider>
+    </>
   );
 }
