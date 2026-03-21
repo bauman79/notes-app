@@ -38,7 +38,7 @@ async function gdriveSave(token, data, existingFileId) {
     );
   } else {
     const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json", parents: ["root"] })], { type: "application/json" }));
+    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json" })], { type: "application/json" }));
     form.append("file", new Blob([body], { type: "application/json" }));
     await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
       method: "POST",
@@ -930,8 +930,9 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 // ─── SwipeFolder: single folder row with swipe-to-delete ──
 // ─── Sidebar ──────────────────────────────────────────────
 function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null); // folder item to confirm
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, sidebarItems, setSidebarItems);
   const NI = { display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:8, cursor:"pointer", fontWeight:500, marginBottom:1, userSelect:"none" };
@@ -963,8 +964,15 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
           );
 
           if (item.type === "sheader") return (
-            <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,.3)", letterSpacing:"1.8px", textTransform:"uppercase", padding:"10px 12px 4px", userSelect:"none" }}>
-              <span style={{ flex:1 }}>{item.label}</span>
+            <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", gap:4, padding:"10px 12px 4px", userSelect:"none" }}>
+              <input
+                value={item.label}
+                onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i, label:e.target.value} : i))}
+                onClick={e => e.stopPropagation()}
+                style={{ flex:1, background:"transparent", border:"none", outline:"none", fontFamily:"inherit", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,.35)", letterSpacing:"1.8px", textTransform:"uppercase", cursor:"text", minWidth:0 }}
+                placeholder="SECTION" />
+              <span style={{ color:"rgba(255,120,120,.4)", fontSize:14, cursor:"pointer", lineHeight:1, padding:"0 2px", flexShrink:0 }}
+                onMouseDown={e => { e.stopPropagation(); setSidebarItems(prev => prev.filter(i => i.id !== item.id)); }}>×</span>
               {handle}
             </div>
           );
@@ -1033,20 +1041,95 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
         </div>
       )}
 
-      <div style={{ padding:"12px 12px 8px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
-        <div style={{ position:"relative" }}>
-          <div style={{ display:"flex", alignItems:"center", color:"rgba(255,255,255,.5)", fontSize:12.5, cursor:"pointer", padding:"7px 10px", borderRadius:7, userSelect:"none" }}
-            onClick={() => setShowAdd(v => !v)}>
-            <span style={{ fontSize:15, marginRight:6 }}>+</span> 추가
-          </div>
-          {showAdd && (
-            <div style={{ position:"absolute", bottom:"100%", left:0, background:"#1650b8", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, overflow:"hidden", zIndex:200, minWidth:110, boxShadow:"0 4px 16px rgba(0,0,0,.25)", marginBottom:4 }}>
-              {[["폴더","folder"],["헤더","sheader"],["구분선","divider"]].map(([l,t]) => (
-                <div key={t} style={{ padding:"10px 16px", color:"rgba(255,255,255,.75)", fontSize:13, cursor:"pointer", fontWeight:500 }}
-                  onClick={() => { onAddItem(t); setShowAdd(false); }}>{l}</div>
+      {/* ── Settings Panel ── */}
+      {showSettings && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(10,20,50,.6)", zIndex:800, display:"flex", alignItems:"flex-end", justifyContent:"flex-start" }}
+          onClick={() => setShowSettings(false)}>
+          <div style={{ width:320, maxWidth:"100vw", background:"#fff", borderRadius:"0 18px 0 0", padding:"28px 24px 36px", boxShadow:"4px 0 40px rgba(15,32,68,.25)", maxHeight:"90vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+              <div style={{ fontSize:18, fontWeight:700, color:"#0f2044" }}>⚙ Settings</div>
+              <span style={{ fontSize:22, cursor:"pointer", color:"#94a3b8", lineHeight:1 }} onClick={() => setShowSettings(false)}>×</span>
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Account</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
+              <div style={{ fontSize:13, color:"#1e3a6e", fontWeight:600, marginBottom:4 }}>{user?.name || "Not signed in"}</div>
+              <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:4 }}>{user?.email || "Sign in to sync your notes"}</div>
+              {syncStatus==="saved" && <div style={{ fontSize:11, color:"#16a34a" }}>✅ Google Drive synced</div>}
+              {syncStatus==="saving" && <div style={{ fontSize:11, color:"#ca8a04" }}>⏳ Saving...</div>}
+              {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626" }}>❌ Sync error</div>}
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>App Info</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"4px 0", marginBottom:20 }}>
+              {[
+                ["📱", "Version", "1.0.0"],
+                ["🌐", "Platform", "Web App"],
+                ["☁️", "Storage", "Google Drive"],
+                ["🔒", "Privacy", "Data stays in your Drive"],
+              ].map(([icon, label, val]) => (
+                <div key={label} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 16px", borderBottom:"1px solid #eef3ff" }}>
+                  <span style={{ fontSize:15 }}>{icon}</span>
+                  <span style={{ flex:1, fontSize:13, color:"#1e3a6e", fontWeight:500 }}>{label}</span>
+                  <span style={{ fontSize:11, color:"#6b8bb5" }}>{val}</span>
+                </div>
               ))}
             </div>
-          )}
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>How to Use</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20, fontSize:12.5, color:"#4b6fa8", lineHeight:1.9 }}>
+              <div>• <b>Folders</b> — organize notes by project</div>
+              <div>• <b>Header</b> — group items inside a folder</div>
+              <div>• <b>To-do</b> — press Enter to add next task</div>
+              <div>• <b>Text</b> — rich notes with sections, tables, links</div>
+              <div>• <b>Worklog</b> — daily log linked to folders</div>
+              <div>• <b>Calendar</b> — view all items by date</div>
+              <div>• <b>⠿</b> — drag to reorder</div>
+              <div>• <b>★</b> — star items to see in Notice</div>
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>About</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20, fontSize:12.5, color:"#4b6fa8", lineHeight:1.8 }}>
+              <div>the NOTES is a personal productivity app. Your notes are securely stored in your own Google Drive.</div>
+              <div style={{ marginTop:8, fontSize:11, color:"#94a3b8" }}>Made by BAUMAN</div>
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#fca5a5", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Danger Zone</div>
+            <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #fecaca", background:"#fff5f5", color:"#e53e3e", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:8 }}
+              onClick={() => { if (window.confirm("Sign out?")) { setShowSettings(false); onLogout(); } }}>
+              Sign Out
+            </button>
+            <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #fecaca", background:"transparent", color:"#e53e3e", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}
+              onClick={() => { if (window.confirm("Delete account? Your Google Drive data will remain.")) setShowSettings(false); }}>
+              Delete Account
+            </button>
+            <div style={{ fontSize:11, color:"#c0cfe8", textAlign:"center", marginTop:20 }}>the NOTES · BAUMAN · v1.0</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add + Settings bar ── */}
+      <div style={{ padding:"8px 12px 6px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ position:"relative" }}>
+            <div style={{ display:"flex", alignItems:"center", color:"rgba(255,255,255,.5)", fontSize:12.5, cursor:"pointer", padding:"7px 10px", borderRadius:7, userSelect:"none" }}
+              onClick={() => setShowAdd(v => !v)}>
+              <span style={{ fontSize:15, marginRight:6 }}>+</span> Add
+            </div>
+            {showAdd && (
+              <div style={{ position:"absolute", bottom:"100%", left:0, background:"#1650b8", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, overflow:"hidden", zIndex:200, minWidth:120, boxShadow:"0 4px 16px rgba(0,0,0,.25)", marginBottom:4 }}>
+                {[["Folder","folder"],["Header","sheader"],["Divider","divider"]].map(([l,t]) => (
+                  <div key={t} style={{ padding:"10px 16px", color:"rgba(255,255,255,.75)", fontSize:13, cursor:"pointer", fontWeight:500 }}
+                    onClick={() => { onAddItem(t); setShowAdd(false); }}>{l}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            style={{ background:"none", border:"none", cursor:"pointer", color:"rgba(255,255,255,.4)", fontSize:20, padding:"6px 10px", borderRadius:7, lineHeight:1 }}
+            title="Settings"
+            onClick={() => setShowSettings(true)}>⚙</button>
         </div>
       </div>
 
@@ -1835,19 +1918,15 @@ function AppInner() {
     onSuccess: async (tokenResponse) => {
       const token = tokenResponse.access_token;
       setAccessToken(token);
-      let userInfo = { name: "User", email: "", picture: "" };
       try {
         const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const info = await res.json();
-        userInfo = { name: info.name, email: info.email, picture: info.picture };
+        setUser({ name: info.name, email: info.email, picture: info.picture });
       } catch (e) {
-        console.error("Userinfo error:", e);
+        setUser({ name: "User", email: "" });
       }
-      setUser(userInfo);
-      sessionStorage.setItem("gtoken", token);
-      sessionStorage.setItem("guser", JSON.stringify(userInfo));
       try {
         const fileId = await gdriveFind(token);
         if (fileId) {
@@ -1868,42 +1947,12 @@ function AppInner() {
   });
 
   const handleLogout = () => {
-    sessionStorage.removeItem("gtoken");
-    sessionStorage.removeItem("guser");
     setUser(null); setAccessToken(null); setDriveFileId(null);
     setDataLoaded(false); setSyncStatus("");
   };
 
   // ─── Auto-save to Google Drive ───────────────────────────
   const saveTimer = useRef(null);
-
-  // 페이지 로드 시 세션 복원
-  useEffect(() => {
-    const savedToken = sessionStorage.getItem("gtoken");
-    const savedUser  = sessionStorage.getItem("guser");
-    if (!savedToken || !savedUser) return;
-    setAccessToken(savedToken);
-    setUser(JSON.parse(savedUser));
-    (async () => {
-      try {
-        const fileId = await gdriveFind(savedToken);
-        if (fileId) {
-          setDriveFileId(fileId);
-          const data = await gdriveRead(savedToken, fileId);
-          if (data) {
-            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
-            if (data.items)        setItems(data.items);
-            if (data.worklogs)     setWorklogs(data.worklogs);
-          }
-          setSyncStatus("saved");
-        }
-      } catch(e) {
-        console.error("Session restore error:", e);
-      } finally {
-        setDataLoaded(true);
-      }
-    })();
-  }, []);
   useEffect(() => {
     if (!accessToken || !dataLoaded) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
