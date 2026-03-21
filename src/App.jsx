@@ -933,6 +933,8 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [collapsedSB,  setCollapsedSB]  = useState(new Set());
+  const toggleSB = id => setCollapsedSB(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, sidebarItems, setSidebarItems);
   const NI = { display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:8, cursor:"pointer", fontWeight:500, marginBottom:1, userSelect:"none" };
@@ -953,7 +955,16 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
 
       <nav ref={containerRef} style={{ padding:"10px 10px", flex:1, overflowY:"auto" }}
         onClick={() => setShowAdd(false)}>
-        {sidebarItems.map((item, index) => {
+        {(() => {
+          // Determine which items are hidden under a collapsed sheader
+          let currentSH = null;
+          const visMap = sidebarItems.map((item, index) => {
+            if (item.type === "sheader") { currentSH = item; return { item, index, visible: true }; }
+            const hidden = currentSH && collapsedSB.has(currentSH.id) && item.type !== "sheader";
+            return { item, index, visible: !hidden };
+          });
+          return visMap.map(({ item, index, visible }) => {
+          if (!visible) return null;
           const handle = (
             <span
               data-handle="1"
@@ -966,6 +977,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
 
           if (item.type === "sheader") return (
             <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", gap:4, padding:"10px 12px 4px", userSelect:"none" }}>
+              <span
+                style={{ color:"rgba(255,255,255,.35)", fontSize:12, cursor:"pointer", flexShrink:0, display:"inline-block", transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)" }}
+                onMouseDown={e => { e.stopPropagation(); toggleSB(item.id); }}>▾</span>
               <input
                 value={item.label}
                 onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i, label:e.target.value} : i))}
@@ -1000,7 +1014,8 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             </div>
           );
           return null;
-        })}
+        });
+        })()}
 
         <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,.08)" }}>
           {[
@@ -1745,15 +1760,15 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
       {sections.map((sec, si) => (
         <div key={sec.header?.id || `pre-${si}`}>
           {sec.header && (
-            <div data-sortidx={sec.hIdx} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2, marginTop:12 }}>
+            <div data-sortidx={sec.hIdx} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2, marginTop:12, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
               {selMode && (
                 <div style={{ width:18,height:18,borderRadius:5,border:"1.5px solid #c2d0e8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,cursor:"pointer",flexShrink:0,marginTop:2,...(selected.has(sec.header.id)?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
                   onClick={() => togSel(sec.header.id)}>{selected.has(sec.header.id)&&"✓"}</div>
               )}
-              <div style={{ flex:1, display:"flex", alignItems:"center", gap:8,
+              <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0,
                 background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))",
                 border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb",
-                borderRadius:9, padding:"10px 14px" }}>
+                borderRadius:9, padding:"10px 14px", overflow:"hidden" }}>
                 <button style={{ background:"none",border:"none",cursor:"pointer",padding:"4px 8px",color:"#2563eb",fontSize:20,display:"flex",alignItems:"center",flexShrink:0,minWidth:32,minHeight:32,justifyContent:"center",borderRadius:6 }}
                   onClick={() => toggleHdr(sec.header.id)}>
                   <span style={{ display:"inline-block",transition:"transform .2s",transform:collapsedHdrs.has(sec.header.id)?"rotate(-90deg)":"rotate(0deg)" }}>▾</span>
@@ -1771,7 +1786,7 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
             </div>
           )}
           {!collapsedHdrs.has(sec.header?.id) && sec.children.map(({ item, idx }) => (
-            <div key={item.id} data-sortidx={idx} style={{ display:"flex", alignItems:"flex-start", gap:6, paddingLeft: sec.header ? 18 : 0 }}>
+            <div key={item.id} data-sortidx={idx} style={{ display:"flex", alignItems:"flex-start", gap:6, paddingLeft:0, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
               {selMode && (
                 <div style={{ width:18,height:18,borderRadius:5,border:"1.5px solid #c2d0e8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,cursor:"pointer",flexShrink:0,marginTop:item.type===T.TEXT?16:14,...(selected.has(item.id)?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
                   onClick={()=>togSel(item.id)}>{selected.has(item.id)&&"✓"}</div>
