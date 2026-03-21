@@ -542,7 +542,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
     : "20px 90px 1fr 120px 1fr 80px 28px";
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"100%"}} onClick={()=>setShowFilter(false)}>
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}} onClick={()=>{ setShowFilter(false); setShowNav(false); }}>
 
       {/* ── Top controls ── */}
       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingBottom:10,borderBottom:"1px solid #eef3ff",marginBottom:8}}>
@@ -586,7 +586,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           </>)}
         </div>
 
-        <div style={{position:"relative"}}>
+        <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
           <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
           {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/>}
         </div>
@@ -839,7 +839,7 @@ function CalendarView({ items, folders }) {
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%" }} onClick={() => setShowFilter(false)}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%" }} onClick={() => { setShowFilter(false); setShowNav(false); }}>
 
       {/* Controls */}
       <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", paddingBottom:10, borderBottom:"1px solid #eef3ff", marginBottom:8 }}>
@@ -1109,7 +1109,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
           if (item.type === "sheader") return (
             <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", gap:4, padding:"10px 12px 4px", userSelect:"none" }}>
               <span
-                style={{ color:"rgba(255,255,255,.35)", fontSize:12, cursor:"pointer", flexShrink:0, display:"inline-block", transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)" }}
+                style={{ color:"rgba(255,255,255,.5)", fontSize:18, cursor:"pointer", flexShrink:0, display:"inline-block", transition:"transform .2s", transform:collapsedSB.has(item.id)?"rotate(-90deg)":"rotate(0deg)", padding:"2px 4px", minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
                 onMouseDown={e => { e.stopPropagation(); toggleSB(item.id); }}>▾</span>
               <input
                 data-focusid={item.id}
@@ -2621,31 +2621,31 @@ function AppInner() {
 
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
         {/* Top bar */}
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:"#f0f4fa", padding:isMobile?"20px 18px 14px":"26px 36px 14px" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ background:"#f0f4fa", padding:isMobile?"16px 14px 10px":"26px 36px 14px" }}>
+          {/* Title row */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: isMobile&&!isSpecial ? 10 : 0 }}>
             {isMobile && (
-              <button style={{ width:38, height:38, borderRadius:10, background:"rgba(37,99,235,.08)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+              <button style={{ width:36, height:36, borderRadius:10, background:"rgba(37,99,235,.08)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}
                 onClick={e => { e.stopPropagation(); setShowSidebar(v => !v); }}>
                 <span style={{ fontSize:18, color:"#2563eb" }}>☰</span>
               </button>
             )}
-            <div>
+            <div style={{ flex:1, minWidth:0 }}>
               {editingFN
-                ? <input autoFocus style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", border:"none", borderBottom:"2px solid #2563eb", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?22:27, width:200 }}
+                ? <input autoFocus style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", border:"none", borderBottom:"2px solid #2563eb", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?20:27, width:"100%", boxSizing:"border-box" }}
                     value={fnDraft} onChange={e => setFnDraft(e.target.value)} onBlur={commitFE} onKeyDown={e => (e.key==="Enter"||e.key==="Escape") && commitFE()} />
-                : <div style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", display:"flex", alignItems:"center", gap:8, fontSize:isMobile?22:27, cursor:isSpecial?"default":"text" }}
+                : <div style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", display:"flex", alignItems:"center", gap:6, fontSize:isMobile?20:27, cursor:isSpecial?"default":"text", overflow:"hidden" }}
                     onClick={!isSpecial ? startFE : undefined}>
-                    {titlePre}{activeF?.name}
-                    {!isSpecial && <span style={{ fontSize:14, color:"#b0c8e8", fontWeight:400 }}>✎</span>}
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titlePre}{activeF?.name}</span>
+                    {!isSpecial && <span style={{ fontSize:13, color:"#b0c8e8", fontWeight:400, flexShrink:0 }}>✎</span>}
                   </div>
               }
-              <div style={{ fontSize:11, color:"#8aa0c0", marginTop:3 }}>
+              <div style={{ fontSize:11, color:"#8aa0c0", marginTop:2 }}>
                 {isCalendar ? `${liveItems.length} total` : isTrash ? `${trashItems.length} items` : isWorklog ? `${worklogs.length} entries` : `${visibleItems.length} items`}
               </div>
             </div>
-          </div>
-
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {/* Desktop only: action buttons inline */}
+            {!isMobile && <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             {/* Sync status indicator */}
             {syncStatus && (
               <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error — tap to re-login"}
@@ -2755,7 +2755,56 @@ function AppInner() {
                 )}
               </div>
             )}
-          </div>
+            </div>}
+          {/* Mobile only: action buttons on second row */}
+          {isMobile && !isSpecial && (
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              {/* Sync + Search */}
+              {syncStatus && (
+                <div title={syncStatus==="saving"?"Saving...":syncStatus==="saved"?"Synced with Drive":"Sync error"}
+                  style={{ width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
+                    background:syncStatus==="error"?"rgba(229,62,62,.08)":"rgba(37,99,235,.07)",
+                    cursor:syncStatus==="error"?"pointer":"default" }}
+                  onClick={syncStatus==="error"?()=>setShowLogin(true):undefined}>
+                  <span style={{ fontSize:15 }}>{syncStatus==="saving"?"⏳":syncStatus==="saved"?"☁️":"❌"}</span>
+                </div>
+              )}
+              <button style={{ width:32, height:32, borderRadius:8, background:"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                onClick={() => setShowGlobalSearch(v => !v)}>
+                <span style={{ fontSize:15 }}>🔍</span>
+              </button>
+              <div style={{ flex:1 }} />
+              {selMode ? (
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  {selected.size > 0 && (
+                    <>
+                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
+                    </>
+                  )}
+                  <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
+                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
+                </div>
+              ) : (
+                <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
+                  onClick={() => setSelMode(true)}>Select</button>
+              )}
+              <div style={{ position:"relative" }}>
+                <button style={{ width:36, height:36, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
+                  onClick={e => { e.stopPropagation(); setShowAddMenu(v => !v); }}>+</button>
+                {showAddMenu && (
+                  <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:44 }}>
+                    {[{type:T.HEADER,label:"Header",icon:"▬"},{type:T.TODO,label:"To-do",icon:"☐"},{type:T.TEXT,label:"Text",icon:"T"}].map(o => (
+                      <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+                        onClick={() => addItem(o.type)}>
+                        <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Content area */}
