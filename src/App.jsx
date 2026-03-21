@@ -963,7 +963,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 
 // ─── SwipeFolder: single folder row with swipe-to-delete ──
 // ─── Sidebar ──────────────────────────────────────────────
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus }) {
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -1187,9 +1187,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             </div>
             {showAdd && (
               <div style={{ position:"absolute", bottom:"100%", left:0, background:"#1650b8", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, overflow:"hidden", zIndex:200, minWidth:120, boxShadow:"0 4px 16px rgba(0,0,0,.25)", marginBottom:4 }}>
-                {[["Folder","folder"],["Header","sheader"],["Divider","divider"]].map(([l,t]) => (
+                {[["Header","sheader"],["Folder","folder"],["Divider","divider"]].map(([l,t]) => (
                   <div key={t} style={{ padding:"10px 16px", color:"rgba(255,255,255,.75)", fontSize:13, cursor:"pointer", fontWeight:500 }}
-                    onClick={() => { onAddItem(t); setShowAdd(false); }}>{l}</div>
+                    onClick={() => { onAddItem(t, activeSidebarId); setShowAdd(false); }}>{l}</div>
                 ))}
               </div>
             )}
@@ -2049,11 +2049,20 @@ function AppInner() {
     setItems(prev => [...prev, ni]);
     setShowAddMenu(false);
   };
-  const addSBI = type => {
+  const addSBI = (type, afterId) => {
     const id = `si${nextId++}`;
-    if (type==="folder")   setSidebarItems(prev => [...prev, { id, type:"folder",  name:"New Folder" }]);
-    if (type==="sheader")  setSidebarItems(prev => [...prev, { id, type:"sheader", label:"NEW SECTION" }]);
-    if (type==="divider")  setSidebarItems(prev => [...prev, { id, type:"divider" }]);
+    const newItem =
+      type==="folder"  ? { id, type:"folder",  name:"New Folder" } :
+      type==="sheader" ? { id, type:"sheader", label:"NEW SECTION" } :
+                         { id, type:"divider" };
+    setSidebarItems(prev => {
+      if (!afterId) return [...prev, newItem];
+      const idx = prev.findIndex(i => i.id === afterId);
+      if (idx === -1) return [...prev, newItem];
+      const arr = [...prev];
+      arr.splice(idx + 1, 0, newItem);
+      return arr;
+    });
   };
   const upd      = (id, patch) => setItems(prev => prev.map(i => i.id===id ? {...i,...patch} : i));
   const softDel  = useCallback(id => {
@@ -2213,7 +2222,8 @@ function AppInner() {
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
       activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
       user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout}
-      trashCount={trashItems.length} syncStatus={syncStatus} />
+      trashCount={trashItems.length} syncStatus={syncStatus}
+      activeSidebarId={activeFolder} />
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
