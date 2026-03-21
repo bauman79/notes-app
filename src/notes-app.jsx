@@ -1,52 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { GoogleOAuthProvider, useGoogleLogin } from "@react-oauth/google";
-
-const GOOGLE_CLIENT_ID = "167666540402-ug48sj0qfst2g08lhcckkf69jvjhel21.apps.googleusercontent.com";
-const DRIVE_FILE_NAME  = "notes-app-data.json";
-
-// ─── Google Drive helpers ─────────────────────────────────
-async function gdriveFind(token) {
-  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  const data = await res.json();
-  return data.files?.[0]?.id || null;
-}
-
-async function gdriveRead(token, fileId) {
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok) return null;
-  return res.json();
-}
-
-async function gdriveSave(token, data, existingFileId) {
-  const body = JSON.stringify(data);
-  if (existingFileId) {
-    await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
-      {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body,
-      }
-    );
-  } else {
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json" })], { type: "application/json" }));
-    form.append("file", new Blob([body], { type: "application/json" }));
-    await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    });
-  }
-}
 
 // ─── Constants ────────────────────────────────────────────
 const T = { HEADER: "header", TODO: "todo", TEXT: "text" };
@@ -466,7 +419,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
 
   // colGrid: cb | date | keyPoint | project | details | notes | actions
   const colGrid = isMobile
-    ? "20px 80px 1fr 100px 28px"
+    ? "20px 72px 1fr 28px"
     : "20px 90px 1fr 120px 1fr 80px 28px";
 
   return (
@@ -477,7 +430,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         <div style={{flex:1,minWidth:120,position:"relative"}}>
           <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:"#a0b4cc",fontSize:13}}>🔍</span>
           <input style={{width:"100%",padding:"7px 10px 7px 28px",borderRadius:9,border:"1.5px solid #e0eaf8",fontSize:12.5,color:"#1e3a6e",outline:"none",fontFamily:"inherit",background:"#fff",boxSizing:"border-box"}}
-            placeholder="검색..." value={search} onChange={e=>setSearch(e.target.value)} />
+            placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
         </div>
 
         {/* Folder filter button */}
@@ -517,7 +470,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
           {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="년월로 이동"/>}
         </div>
-        <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ 엑셀</button>
+        <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>삭제({selected.size})</button>}
         <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ 추가</button>
       </div>
@@ -544,8 +497,8 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
               </div>
               {/* Column headers */}
               <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",marginBottom:2}}>
-                <div/><div>날짜</div><div>핵심사항</div><div>폴더</div>
-                {!isMobile&&<><div>세부내용</div><div>비고</div></>}
+                <div/><div>Date</div><div>Key Point</div><div>Folder</div>
+                {!isMobile&&<><div>Details</div><div>Notes</div></>}
                 <div/>
               </div>
               {sortedDays.map(date=>(
@@ -584,14 +537,14 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
       {/* Date pill */}
       <div style={{position:"relative"}}>
         {wi===0
-          ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"날짜"}</div>
+          ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"Date"}</div>
           : <div style={{...wDatePill,opacity:.2,pointerEvents:"none",fontSize:11}}>{entry.date}</div>
         }
         {showDP && <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>}
       </div>
 
       {/* Key point */}
-      <input style={wCell} value={entry.keyPoint} placeholder="핵심사항..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
+      <input style={wCell} value={entry.keyPoint} placeholder="Key point..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
 
       {/* Folder picker pill */}
       <div style={{position:"relative"}}>
@@ -625,11 +578,11 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
         )}
       </div>
 
-      {!isMobile && <input style={wCell} value={entry.details} placeholder="세부내용..." onChange={e=>onUpdate({details:e.target.value})}/>}
-      {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="비고..." onChange={e=>onUpdate({notes:e.target.value})}/>}
+      {!isMobile && <input style={wCell} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
+      {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
-        <button style={wRowBtn} onClick={onAddBelow} title="행 추가">＋</button>
-        <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="삭제">×</button>
+        <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
+        <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
       </div>
     </div>
   );
@@ -677,7 +630,7 @@ function DownloadModal({ worklogs, onClose }) {
         <button style={{ width:"100%", padding:"12px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
           onClick={doDownload}>다운로드</button>
         <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
-          onClick={onClose}>취소</button>
+          onClick={onClose}>Cancel</button>
       </div>
     </div>
   );
@@ -769,7 +722,7 @@ function CalendarView({ items, folders }) {
         <div style={{ flex:1, minWidth:120, position:"relative" }}>
           <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"#a0b4cc", fontSize:13 }}>🔍</span>
           <input style={{ width:"100%", padding:"7px 10px 7px 28px", borderRadius:9, border:"1.5px solid #e0eaf8", fontSize:12.5, color:"#1e3a6e", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box" }}
-            placeholder="검색..." value={search} onChange={e => setSearch(e.target.value)} />
+            placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
         {/* Folder filter */}
@@ -812,7 +765,7 @@ function CalendarView({ items, folders }) {
 
         {/* Excel download */}
         <button style={{ ...wBtn, background:"#2563eb", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(37,99,235,.3)" }}
-          onClick={doDownload}>↓ 엑셀</button>
+          onClick={doDownload}>↓ Excel</button>
       </div>
 
       {/* List */}
@@ -880,7 +833,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
             <div style={{ width:17, height:17, borderRadius:4, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, ...(allSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}>
               {allSel && "✓"}
             </div>
-            <span style={{ fontSize:12, color:"#6b8bb5" }}>전체 선택</span>
+            <span style={{ fontSize:12, color:"#6b8bb5" }}>Select all</span>
           </div>
           <div style={{ display:"flex", gap:6 }}>
             {sel.size > 0 && (
@@ -892,7 +845,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
               </>
             )}
             <button style={{ background:"none", border:"1px solid #e5e7eb", borderRadius:7, padding:"5px 11px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#9ca3af" }}
-              onClick={() => { onEmpty(); setSel(new Set()); }}>전체 비우기</button>
+              onClick={() => { onEmpty(); setSel(new Set()); }}>Empty all</button>
           </div>
         </div>
       )}
@@ -929,8 +882,9 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 
 // ─── SwipeFolder: single folder row with swipe-to-delete ──
 // ─── Sidebar ──────────────────────────────────────────────
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus }) {
-  const [showAdd, setShowAdd] = useState(false);
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount }) {
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // folder item to confirm
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, sidebarItems, setSidebarItems);
@@ -963,8 +917,15 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
           );
 
           if (item.type === "sheader") return (
-            <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,.3)", letterSpacing:"1.8px", textTransform:"uppercase", padding:"10px 12px 4px", userSelect:"none" }}>
-              <span style={{ flex:1 }}>{item.label}</span>
+            <div key={item.id} data-sortidx={index} style={{ display:"flex", alignItems:"center", gap:4, padding:"10px 12px 4px", userSelect:"none" }}>
+              <input
+                value={item.label}
+                onChange={e => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i, label:e.target.value} : i))}
+                onClick={e => e.stopPropagation()}
+                style={{ flex:1, background:"transparent", border:"none", outline:"none", fontFamily:"inherit", fontSize:9.5, fontWeight:700, color:"rgba(255,255,255,.35)", letterSpacing:"1.8px", textTransform:"uppercase", cursor:"text", minWidth:0 }}
+                placeholder="SECTION" />
+              <span style={{ color:"rgba(255,120,120,.4)", fontSize:14, cursor:"pointer", lineHeight:1, padding:"0 2px", flexShrink:0 }}
+                onMouseDown={e => { e.stopPropagation(); setSidebarItems(prev => prev.filter(i => i.id !== item.id)); }}>×</span>
               {handle}
             </div>
           );
@@ -1018,56 +979,109 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
           <div style={{ background:"#fff", borderRadius:18, padding:"28px 24px 22px", width:280, boxShadow:"0 16px 48px rgba(15,32,68,.28)", textAlign:"center" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize:36, marginBottom:8 }}>🗑</div>
-            <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:8 }}>폴더 삭제</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:8 }}>Delete Folder</div>
             <div style={{ fontSize:13, color:"#6b8bb5", marginBottom:22, lineHeight:1.6 }}>
-              <span style={{ fontWeight:700, color:"#1e3a6e" }}>"{confirmDelete.name}"</span> 폴더를 삭제하시겠습니까?<br/>
-              폴더 안의 노트는 삭제되지 않습니다.
+              <span style={{ fontWeight:700, color:"#1e3a6e" }}>"{confirmDelete.name}"</span> Are you sure you want to delete this folder?<br/>
+              Notes inside will not be deleted.
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button style={{ flex:1, padding:"11px", borderRadius:10, border:"1.5px solid #e0eaf8", background:"transparent", color:"#6b8bb5", fontSize:14, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}
-                onClick={() => setConfirmDelete(null)}>취소</button>
+                onClick={() => setConfirmDelete(null)}>Cancel</button>
               <button style={{ flex:1, padding:"11px", borderRadius:10, border:"none", background:"#e53e3e", color:"#fff", fontSize:14, cursor:"pointer", fontFamily:"inherit", fontWeight:700, boxShadow:"0 4px 12px rgba(229,62,62,.3)" }}
-                onClick={() => deleteFolder(confirmDelete)}>삭제</button>
+                onClick={() => deleteFolder(confirmDelete)}>Delete</button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ padding:"12px 12px 8px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
-        <div style={{ position:"relative" }}>
-          <div style={{ display:"flex", alignItems:"center", color:"rgba(255,255,255,.5)", fontSize:12.5, cursor:"pointer", padding:"7px 10px", borderRadius:7, userSelect:"none" }}
-            onClick={() => setShowAdd(v => !v)}>
-            <span style={{ fontSize:15, marginRight:6 }}>+</span> 추가
-          </div>
-          {showAdd && (
-            <div style={{ position:"absolute", bottom:"100%", left:0, background:"#1650b8", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, overflow:"hidden", zIndex:200, minWidth:110, boxShadow:"0 4px 16px rgba(0,0,0,.25)", marginBottom:4 }}>
-              {[["폴더","folder"],["헤더","sheader"],["구분선","divider"]].map(([l,t]) => (
-                <div key={t} style={{ padding:"10px 16px", color:"rgba(255,255,255,.75)", fontSize:13, cursor:"pointer", fontWeight:500 }}
-                  onClick={() => { onAddItem(t); setShowAdd(false); }}>{l}</div>
+      {/* Settings panel */}
+      {showSettings && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(10,20,50,.6)", zIndex:800, display:"flex", alignItems:"flex-end", justifyContent:"flex-start" }}
+          onClick={() => setShowSettings(false)}>
+          <div style={{ width:320, maxWidth:"100vw", background:"#fff", borderRadius:"0 18px 0 0", padding:"28px 24px 36px", boxShadow:"4px 0 40px rgba(15,32,68,.25)", maxHeight:"90vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+              <div style={{ fontSize:18, fontWeight:700, color:"#0f2044" }}>⚙ Settings</div>
+              <span style={{ fontSize:22, cursor:"pointer", color:"#94a3b8", lineHeight:1 }} onClick={() => setShowSettings(false)}>×</span>
+            </div>
+            {/* Account */}
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Account</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
+              <div style={{ fontSize:13, color:"#1e3a6e", fontWeight:600, marginBottom:4 }}>{user?.name || "Not signed in"}</div>
+              <div style={{ fontSize:12, color:"#6b8bb5" }}>{user?.email || "Sign in to sync your notes"}</div>
+            </div>
+            {/* Preferences */}
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Preferences</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"4px 0", marginBottom:20 }}>
+              {[
+                ["🌐", "Language", "English"],
+                ["🔔", "Notifications", "On"],
+                ["🌙", "Theme", "Light"],
+              ].map(([icon, label, val]) => (
+                <div key={label} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid #eef3ff" }}>
+                  <span style={{ fontSize:16 }}>{icon}</span>
+                  <span style={{ flex:1, fontSize:13, color:"#1e3a6e", fontWeight:500 }}>{label}</span>
+                  <span style={{ fontSize:12, color:"#6b8bb5" }}>{val}</span>
+                </div>
               ))}
             </div>
-          )}
+            {/* How to use */}
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>How to use</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20, fontSize:12.5, color:"#4b6fa8", lineHeight:1.8 }}>
+              <div>• <b>Folders</b> — organize your notes by project</div>
+              <div>• <b>Header</b> — group items inside a folder</div>
+              <div>• <b>To-do</b> — press Enter to add next task</div>
+              <div>• <b>Text</b> — rich content with sections, tables, links</div>
+              <div>• <b>Worklog</b> — daily work log linked to folders</div>
+              <div>• <b>Calendar</b> — view items by date</div>
+              <div>• <b>⠿</b> — drag handle to reorder items</div>
+            </div>
+            {/* Danger zone */}
+            <div style={{ fontSize:11, fontWeight:700, color:"#fca5a5", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Danger Zone</div>
+            <button style={{ width:"100%", padding:"12px", borderRadius:10, border:"1.5px solid #fecaca", background:"#fff5f5", color:"#e53e3e", fontSize:13.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+              onClick={() => { if (window.confirm("Are you sure you want to delete your account? This cannot be undone.")) setShowSettings(false); }}>
+              Delete Account
+            </button>
+            <div style={{ fontSize:11, color:"#c0cfe8", textAlign:"center", marginTop:20 }}>the NOTES · BAUMAN · v1.0</div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding:"8px 12px 6px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", color:"rgba(255,255,255,.5)", fontSize:12.5, cursor:"pointer", padding:"7px 10px", borderRadius:7, userSelect:"none" }}
+            onClick={() => setShowAdd(v => !v)}>
+            <span style={{ fontSize:15, marginRight:6 }}>+</span> Add
+          </div>
+          <div style={{ position:"relative" }}>
+            {showAdd && (
+              <div style={{ position:"absolute", bottom:"100%", right:0, background:"#1650b8", border:"1px solid rgba(255,255,255,.15)", borderRadius:10, overflow:"hidden", zIndex:200, minWidth:120, boxShadow:"0 4px 16px rgba(0,0,0,.25)", marginBottom:4 }}>
+                {[["Folder","folder"],["Header","sheader"],["Divider","divider"]].map(([l,t]) => (
+                  <div key={t} style={{ padding:"10px 16px", color:"rgba(255,255,255,.75)", fontSize:13, cursor:"pointer", fontWeight:500 }}
+                    onClick={() => { onAddItem(t); setShowAdd(false); }}>{l}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <button
+            style={{ background:"none", border:"none", cursor:"pointer", color:"rgba(255,255,255,.4)", fontSize:20, padding:"6px 10px", borderRadius:7, lineHeight:1 }}
+            title="Settings"
+            onClick={() => setShowSettings(true)}>⚙</button>
         </div>
       </div>
 
       <div style={{ padding:"12px 12px 28px", borderTop:"1px solid rgba(255,255,255,.08)", flexShrink:0 }}>
         {user ? (
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            {user.picture
-              ? <img src={user.picture} alt="" style={{ width:32, height:32, borderRadius:"50%", flexShrink:0, objectFit:"cover" }} referrerPolicy="no-referrer" />
-              : <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#4285F4,#34A853)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700, flexShrink:0 }}>
-                  {user.name?.[0]?.toUpperCase() || "G"}
-                </div>
-            }
+            <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#4285F4,#34A853)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700, flexShrink:0 }}>
+              {user.name?.[0]?.toUpperCase() || "G"}
+            </div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ color:"#fff", fontSize:12.5, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</div>
               <div style={{ color:"rgba(255,255,255,.4)", fontSize:10, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</div>
-              <div style={{ fontSize:9, marginTop:1, color: syncStatus==="saving"?"#fde68a":syncStatus==="saved"?"#86efac":syncStatus==="error"?"#fca5a5":"transparent" }}>
-                {syncStatus==="saving"?"⏳ Saving...":syncStatus==="saved"?"✅ Synced":syncStatus==="error"?"❌ Save failed":"·"}
-              </div>
             </div>
             <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}
-              onClick={onLogout}>로그아웃</button>
+              onClick={onLogout}>Log out</button>
           </div>
         ) : (
           <button style={{ display:"flex", alignItems:"center", gap:8, width:"100%", background:"rgba(255,255,255,.95)", border:"none", borderRadius:10, padding:"10px 14px", cursor:"pointer", fontSize:12.5, fontWeight:600, color:"#1650b8", boxShadow:"0 2px 8px rgba(0,0,0,.15)" }}
@@ -1078,7 +1092,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            <span>Google로 로그인</span>
+            <span>Sign in with Google</span>
           </button>
         )}
       </div>
@@ -1119,24 +1133,27 @@ function LinkItem({ lk, onDelete }) {
 }
 // ─── Note Item Components ─────────────────────────────────
 function HiddenSection({ section, isMobile, onUpdate, onDelete }) {
+  // Default open:true when first created
+  const isOpen = section.open !== false;
   return (
-    <div style={{ margin:"0 14px 6px 21px", border:"1px solid #e0eaf8", borderRadius:9, overflow:"hidden", background:"#fafcff" }}
+    <div style={{ margin:"0 14px 6px 21px", border:"1px solid #d0dcf0", borderRadius:9, overflow:"hidden", background:"#fafcff" }}
       onClick={e => e.stopPropagation()}>
-      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 10px", background:"#f0f5fc" }}>
-        <button style={{ background:"none", border:"none", cursor:"pointer", color:"#4b6fa8", padding:"2px 4px", borderRadius:4, display:"flex", alignItems:"center", flexShrink:0 }}
-          onClick={() => onUpdate({ open:!section.open })}>
-          <span style={{ display:"inline-block", transition:"transform .2s", transform:section.open?"rotate(0deg)":"rotate(-90deg)", fontSize:13 }}>▾</span>
-        </button>
-        <input style={{ color:"#2a5ba8", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:12.5, fontWeight:600, flex:1 }}
-          value={section.label} onChange={e => onUpdate({ label:e.target.value })} placeholder="섹션 제목..."
+      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 10px", background:"#eef3fb", cursor:"pointer" }}
+        onClick={() => onUpdate({ open:!isOpen })}>
+        <span style={{ display:"inline-block", transition:"transform .2s", transform:isOpen?"rotate(0deg)":"rotate(-90deg)", fontSize:13, color:"#4b6fa8", flexShrink:0 }}>▾</span>
+        <input style={{ color:"#2a5ba8", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:12.5, fontWeight:600, flex:1, cursor:"text" }}
+          value={section.label} onChange={e => onUpdate({ label:e.target.value })} placeholder="Section title..."
           onClick={e => e.stopPropagation()} />
-        <span style={{ color:"#c0cfe8", fontSize:15, cursor:"pointer", padding:"0 2px" }} onClick={onDelete}>×</span>
+        <span style={{ color:"#c0cfe8", fontSize:15, cursor:"pointer", padding:"0 2px", flexShrink:0 }}
+          onClick={e => { e.stopPropagation(); onDelete(); }}>×</span>
       </div>
-      {section.open && (
-        <div style={{ padding:"10px 12px", borderTop:"1px solid #e8eef8" }}>
-          <RichText html={section.content||""} onChange={v => onUpdate({ content:v })}
-            placeholder="내용을 입력하세요..." style={{ fontSize:isMobile?13.5:13, minHeight:36 }} />
-        </div>
+      {/* Always show content area — collapse only hides it */}
+      <div style={{ padding:"10px 12px", borderTop:"1px solid #e0eaf8", display:isOpen?"block":"none" }}>
+        <RichText html={section.content||""} onChange={v => onUpdate({ content:v })}
+          placeholder="Write section content here..." style={{ fontSize:isMobile?13.5:13, minHeight:40 }} />
+      </div>
+      {!isOpen && (
+        <div style={{ padding:"4px 12px 6px", fontSize:11, color:"#a0b4cc", fontStyle:"italic" }}>Click to expand...</div>
       )}
     </div>
   );
@@ -1221,7 +1238,7 @@ function LinkModal({ onConfirm, onClose }) {
         </div>
 
         <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-          <button style={mBtnC} onClick={onClose}>취소</button>
+          <button style={mBtnC} onClick={onClose}>Cancel</button>
           <button style={{ ...mBtnP, background: ytDetected ? "#e53e3e" : "#2563eb", boxShadow: ytDetected ? "0 4px 10px rgba(229,62,62,.3)" : "0 4px 10px rgba(37,99,235,.3)" }}
             onClick={submit}>추가</button>
         </div>
@@ -1565,7 +1582,7 @@ const tbBtn = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,co
 
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
   const [showLM, setShowLM] = useState(false);
-  const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"새 섹션", content:"", open:false }] });
+  const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
   const updHS  = (id,p) => onUpdate({ hiddenSections:(item.hiddenSections||[]).map(h=>h.id===id?{...h,...p}:h) });
   const delHS  = id => onUpdate({ hiddenSections:(item.hiddenSections||[]).filter(h=>h.id!==id) });
   const addLk  = ({label,url}) => { onUpdate({ links:[...(item.links||[]),{id:`lk${nextId++}`,label,url}] }); setShowLM(false); };
@@ -1576,7 +1593,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
   const pad = isMobile ? "14px" : "13px 14px";
   return (
     <>
-      <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", flexDirection:"column", alignItems:"stretch", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+      <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", flexDirection:"column", alignItems:"stretch", cursor:"grab", userSelect:"none", overflow:"hidden", maxWidth:"100%", boxSizing:"border-box", ...drag }} {...bp}>
         <div style={{ display:"flex", alignItems:"center", gap:8, padding:pad, paddingBottom:6 }}>
           <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
@@ -1586,7 +1603,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
-          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="내용을 입력하세요..." style={{fontSize:isMobile?14:13.5}} />
+          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
         </div>
         {(item.hiddenSections||[]).map(h=>(
           <HiddenSection key={h.id} section={h} isMobile={isMobile} onUpdate={p=>updHS(h.id,p)} onDelete={()=>delHS(h.id)} />
@@ -1604,9 +1621,9 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
           <span style={{ fontSize:10, color:"#a8bcd8" }}>{item.createdAt}</span>
           <div style={{ display:"flex", gap:6 }}>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>＋ 섹션</button>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();addTbl();}}>⊞ 표</button>
-            <button style={footBtn} onClick={e=>{e.stopPropagation();setShowLM(true);}}>🔗 링크</button>
+            <button style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>+ Section</button>
+            <button style={footBtn} onClick={e=>{e.stopPropagation();addTbl();}}>⊞ Table</button>
+            <button style={footBtn} onClick={e=>{e.stopPropagation();setShowLM(true);}}>🔗 Link</button>
           </div>
         </div>
       </div>
@@ -1622,10 +1639,12 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, items, setItems);
 
-  // Build header sections with flat indices
+  // Build header sections — exclude done todos from main render
+  const activeItems = items.filter(i => !(i.type===T.TODO && i.done));
   const sections = [];
   let cur = null;
-  items.forEach((item, idx) => {
+  activeItems.forEach((item) => {
+    const idx = items.indexOf(item);
     if (item.type === T.HEADER) {
       cur = { header: item, hIdx: idx, children: [] };
       sections.push(cur);
@@ -1689,11 +1708,43 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
           ))}
         </div>
       ))}
+      {/* Completed section — done todos */}
+      {(() => {
+        const doneTodos = items.filter(i => i.type===T.TODO && i.done);
+        if (!doneTodos.length) return null;
+        return <CompletedSection items={doneTodos} upd={upd} />;
+      })()}
     </div>
   );
 }
 
-function ItemBlock({ item, isMobile, onUpdate, onDelete }) {
+function CompletedSection({ items, upd }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop:16 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", padding:"8px 4px", borderTop:"1px solid #e8eef8" }}
+        onClick={() => setOpen(v => !v)}>
+        <span style={{ display:"inline-block", transition:"transform .2s", transform:open?"rotate(0deg)":"rotate(-90deg)", color:"#94a3b8", fontSize:13 }}>▾</span>
+        <span style={{ fontSize:11.5, fontWeight:700, color:"#94a3b8", letterSpacing:"0.5px" }}>Completed ({items.length})</span>
+      </div>
+      {open && (
+        <div style={{ paddingLeft:4 }}>
+          {items.map(item => (
+            <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#f8faff", borderRadius:10, padding:"10px 14px", marginBottom:4, opacity:.7 }}>
+              <div style={{ borderRadius:5, border:"1.5px solid #2563eb", background:"#2563eb", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:18, height:18 }}
+                onClick={() => upd(item.id, { done:false })}>
+                <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>
+              </div>
+              <span style={{ flex:1, fontSize:14, color:"#96acc8", textDecoration:"line-through", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(no title)"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemBlock({ item, isMobile, onUpdate, onDelete, onAddBelow }) {
   const bp = {};
   const drag = {};
   const fs = isMobile ? 15 : 14;
@@ -1709,15 +1760,21 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete }) {
   );
 
   if (item.type === T.TODO) return (
-    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
-      <div style={{ padding:isMobile?"14px":"12px 14px", display:"flex", alignItems:"center", gap:10, width:"100%", boxSizing:"border-box" }}>
-        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?21:18, height:isMobile?21:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
+    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", overflow:"hidden", ...drag }} {...bp}>
+      <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
+        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
-        <input style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
-          value={item.title} placeholder="할 일 입력..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-        <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>
+        <input
+          style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+          value={item.title}
+          placeholder="Add a task..."
+          onChange={e => onUpdate({ title:e.target.value })}
+          onClick={e => e.stopPropagation()}
+          onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+        />
+        {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
         <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
@@ -1752,7 +1809,7 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 }
 
 // ─── App ──────────────────────────────────────────────────
-function AppInner() {
+export default function App() {
   const isMobile = useIsMobile();
   const [sidebarItems, setSidebarItems] = useState(initSidebar);
   const [items,        setItems]        = useState(initItems);
@@ -1767,11 +1824,7 @@ function AppInner() {
   const [collapsedHdrs,setCollapsedHdrs] = useState(new Set());
   const toggleHdr = id => setCollapsedHdrs(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const [user,         setUser]         = useState(null);
-  const [accessToken,  setAccessToken]  = useState(null);
   const [showLogin,    setShowLogin]    = useState(false);
-  const [driveFileId,  setDriveFileId]  = useState(null);
-  const [syncStatus,   setSyncStatus]   = useState("");
-  const [dataLoaded,   setDataLoaded]   = useState(false);
 
   const folders     = sidebarItems.filter(i => i.type === "folder");
   const isNotice    = activeFolder === NOTICE_ID;
@@ -1829,75 +1882,19 @@ function AppInner() {
   const restoreItem  = id => setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:undefined, originalFolder:undefined, originalFolderName:undefined} : i));
   const permDel      = id => setItems(prev => prev.filter(i => i.id!==id));
   const emptyTrash   = () => setItems(prev => prev.filter(i => !i.deletedAt));
-  // ─── Google Login ───────────────────────────────────────
-  const googleLogin = useGoogleLogin({
-    scope: "https://www.googleapis.com/auth/drive.file",
-    onSuccess: async (tokenResponse) => {
-      const token = tokenResponse.access_token;
-      setAccessToken(token);
-      try {
-        const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const info = await res.json();
-        setUser({ name: info.name, email: info.email, picture: info.picture });
-      } catch (e) {
-        setUser({ name: "User", email: "" });
-      }
-      try {
-        const fileId = await gdriveFind(token);
-        if (fileId) {
-          setDriveFileId(fileId);
-          const data = await gdriveRead(token, fileId);
-          if (data) {
-            if (data.sidebarItems) setSidebarItems(data.sidebarItems);
-            if (data.items)        setItems(data.items);
-            if (data.worklogs)     setWorklogs(data.worklogs);
-            setSyncStatus("saved");
-          }
-        }
-      } catch (e) { console.error("Drive load error:", e); }
-      setDataLoaded(true);
-      setShowLogin(false);
-    },
-    onError: () => alert("Google 로그인에 실패했습니다."),
-  });
-
-  const handleLogout = () => {
-    setUser(null); setAccessToken(null); setDriveFileId(null);
-    setDataLoaded(false); setSyncStatus("");
-  };
-
-  // ─── Auto-save to Google Drive ───────────────────────────
-  const saveTimer = useRef(null);
-  useEffect(() => {
-    if (!accessToken || !dataLoaded) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      setSyncStatus("saving");
-      try {
-        await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
-        if (!driveFileId) {
-          const fid = await gdriveFind(accessToken);
-          if (fid) setDriveFileId(fid);
-        }
-        setSyncStatus("saved");
-      } catch (e) { console.error("Drive save error:", e); setSyncStatus("error"); }
-    }, 2000);
-    return () => clearTimeout(saveTimer.current);
-  }, [sidebarItems, items, worklogs, accessToken, dataLoaded]);
+  const mockLogin    = () => { setUser({ name:"두호 Kim", email:"duho@gmail.com" }); setShowLogin(false); };
 
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
       activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
-      user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout}
-      trashCount={trashItems.length} syncStatus={syncStatus} />
+      user={user} onLogin={() => setShowLogin(true)} onLogout={() => setUser(null)}
+      trashCount={trashItems.length} />
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
 
   return (
-    <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
+    <div style={{ display:"flex", height:"100vh", width:"100vw", maxWidth:"100vw", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative", boxSizing:"border-box" }}
       onClick={() => setShowAddMenu(false)}>
 
       {isMobile && showSidebar && (
@@ -1911,9 +1908,9 @@ function AppInner() {
         <aside style={{ width:224, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)", display:"flex", flexDirection:"column", flexShrink:0, boxShadow:"2px 0 24px rgba(28,110,243,.25)" }}>{SC}</aside>
       )}
 
-      <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
+      <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative", minWidth:0, maxWidth:"100%" }}>
         {/* Top bar */}
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:"#f0f4fa", padding:isMobile?"20px 18px 14px":"26px 36px 14px" }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:"#f0f4fa", padding:isMobile?"16px 12px 10px":"26px 36px 14px", boxSizing:"border-box", width:"100%", flexWrap:"wrap", gap:8 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             {isMobile && (
               <button style={{ width:38, height:38, borderRadius:10, background:"rgba(37,99,235,.08)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
@@ -1927,7 +1924,7 @@ function AppInner() {
                     value={fnDraft} onChange={e => setFnDraft(e.target.value)} onBlur={commitFE} onKeyDown={e => (e.key==="Enter"||e.key==="Escape") && commitFE()} />
                 : <div style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", display:"flex", alignItems:"center", gap:8, fontSize:isMobile?22:27, cursor:isSpecial?"default":"text" }}
                     onClick={!isSpecial ? startFE : undefined}>
-                    {titlePre}{activeF?.name}
+                    <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth: isMobile?"160px":"none" }}>{titlePre}{activeF?.name}</span>
                     {!isSpecial && <span style={{ fontSize:14, color:"#b0c8e8", fontWeight:400 }}>✎</span>}
                   </div>
               }
@@ -1949,16 +1946,16 @@ function AppInner() {
                   </div>
                   {selected.size > 0 && (
                     <>
-                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>공유</button>
-                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>삭제</button>
+                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                     </>
                   )}
                   <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
-                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>취소</button>
+                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
                 </div>
               ) : (
-                <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
-                  onClick={() => setSelMode(true)}>선택</button>
+                <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"6px 10px", fontSize:isMobile?11.5:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8", whiteSpace:"nowrap" }}
+                  onClick={() => setSelMode(true)}>Select</button>
               )
             )}
             {!isSpecial && !selMode && (
@@ -1981,7 +1978,7 @@ function AppInner() {
         </div>
 
         {/* Content area */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 10px 40px":"8px 36px 40px") : (isMobile?"4px 10px 40px":"4px 36px 40px"), boxSizing:"border-box", width:"100%" }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
           {isCalendar && <CalendarView items={items} folders={folders} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
@@ -1991,7 +1988,7 @@ function AppInner() {
               {visibleItems.length === 0 && (
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 0", color:"#b0c4de" }}>
                   <div style={{ fontSize:36, marginBottom:10 }}>★</div>
-                  <div style={{ fontSize:13 }}>별표 항목이 없습니다.</div>
+                  <div style={{ fontSize:13 }}>No starred items.</div>
                 </div>
               )}
             </>
@@ -2058,23 +2055,15 @@ function AppInner() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Google로 로그인</div>
-            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>로그인하면 노트가 Google Drive에<br/>자동 동기화됩니다. (현재 데모 모드)</p>
+            <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Sign in with Google</div>
+            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>Sign in to sync notes with<br/>your Google Drive. (Demo mode)</p>
             <button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"13px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
-              onClick={() => { setShowLogin(false); googleLogin(); }}>Continue with Google</button>
+              onClick={mockLogin}>Continue with Google</button>
             <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
-              onClick={() => setShowLogin(false)}>취소</button>
+              onClick={() => setShowLogin(false)}>Cancel</button>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AppInner />
-    </GoogleOAuthProvider>
   );
 }
