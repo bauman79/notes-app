@@ -1897,9 +1897,16 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 // ─── App ──────────────────────────────────────────────────
 function AppInner() {
   const isMobile = useIsMobile();
-  const [sidebarItems, setSidebarItems] = useState(initSidebar);
-  const [items,        setItems]        = useState(initItems);
-  const [worklogs,     setWorklogs]     = useState(initWorklogs);
+  // Start empty — data loads from Drive on session restore, or defaults if no session
+  const [sidebarItems, setSidebarItems] = useState(() => {
+    return sessionStorage.getItem("gtoken") ? [] : initSidebar;
+  });
+  const [items,        setItems]        = useState(() => {
+    return sessionStorage.getItem("gtoken") ? [] : initItems;
+  });
+  const [worklogs,     setWorklogs]     = useState(() => {
+    return sessionStorage.getItem("gtoken") ? [] : initWorklogs;
+  });
   const [activeFolder, setActiveFolder] = useState("f1");
   const [editingFN,    setEditingFN]    = useState(false);
   const [fnDraft,      setFnDraft]      = useState("");
@@ -1915,6 +1922,7 @@ function AppInner() {
   const [driveFileId,  setDriveFileId]  = useState(null);
   const [syncStatus,   setSyncStatus]   = useState("");
   const [dataLoaded,   setDataLoaded]   = useState(false);
+  const isRestoring = useRef(false); // prevent auto-save during restore
 
   const folders     = sidebarItems.filter(i => i.type === "folder");
   const isNotice    = activeFolder === NOTICE_ID;
@@ -2025,6 +2033,7 @@ function AppInner() {
     const savedToken = sessionStorage.getItem("gtoken");
     const savedUser  = sessionStorage.getItem("guser");
     if (!savedToken || !savedUser) return;
+    isRestoring.current = true; // block auto-save during restore
     setAccessToken(savedToken);
     setUser(JSON.parse(savedUser));
     (async () => {
@@ -2044,12 +2053,15 @@ function AppInner() {
         console.error("Session restore error:", e);
       } finally {
         setDataLoaded(true);
+        // short delay so React state settles before allowing auto-save
+        setTimeout(() => { isRestoring.current = false; }, 500);
       }
     })();
   }, []);
 
   useEffect(() => {
     if (!accessToken || !dataLoaded) return;
+    if (isRestoring.current) return; // skip save during restore
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
@@ -2073,6 +2085,19 @@ function AppInner() {
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
+
+  // Show loading screen while restoring session from Drive
+  const hasSession = !!sessionStorage.getItem("gtoken");
+  if (hasSession && !dataLoaded) {
+    return (
+      <div style={{ display:"flex", height:"100vh", alignItems:"center", justifyContent:"center", background:"#f0f4fa", flexDirection:"column", gap:16 }}>
+        <div style={{ fontSize:26, fontWeight:900, letterSpacing:"3px", color:"#2563eb", fontFamily:"'Arial Black',sans-serif" }}>NOTES</div>
+        <div style={{ fontSize:13, color:"#94a3b8" }}>Loading your notes...</div>
+        <div style={{ width:40, height:40, borderRadius:"50%", border:"3px solid #e0eaf8", borderTopColor:"#2563eb", animation:"spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
