@@ -565,7 +565,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
                 <div style={{width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:allSelected?"#2563eb":"#c2d0e8",background:allSelected?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                   {allSelected && <span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
                 </div>
-                <span style={{fontSize:13,fontWeight:600,color:allSelected?"#2563eb":"#1e3a6e"}}>전체</span>
+                <span style={{fontSize:13,fontWeight:600,color:allSelected?"#2563eb":"#1e3a6e"}}>All</span>
               </div>
               {folderNames.map(name => {
                 const on = filterFolders.has(name);
@@ -589,7 +589,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>삭제({selected.size})</button>}
-        <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ 추가</button>
+        <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ Add</button>
       </div>
 
       {/* ── List ── */}
@@ -608,9 +608,9 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           return (
             <div key={ym} data-ym={ym} style={{marginBottom:28}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,marginTop:4}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#1e3a6e",background:"#eef3ff",borderRadius:20,padding:"4px 14px",flexShrink:0}}>{yy}년 {parseInt(mm)}월</div>
+                <div style={{fontSize:13,fontWeight:700,color:"#1e3a6e",background:"#eef3ff",borderRadius:20,padding:"4px 14px",flexShrink:0}}>{yy} / {parseInt(mm)}</div>
                 <div style={{flex:1,height:1,background:"rgba(37,99,235,.1)"}}/>
-                <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{grouped[ym].length}건</span>
+                <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{grouped[ym].length}</span>
               </div>
               {/* Column headers */}
               <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",marginBottom:2}}>
@@ -677,7 +677,7 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
           <div style={{position:"absolute",zIndex:500,background:"#fff",borderRadius:12,
             boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",
             top:"100%",left:0,marginTop:4,minWidth:150,overflow:"hidden"}}>
-            <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>폴더 선택</div>
+            <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Select folder</div>
             {entry.project && (
               <div style={{padding:"8px 14px",fontSize:12,color:"#e53e3e",cursor:"pointer",fontWeight:500,borderBottom:"1px solid #f0f4fa"}}
                 onMouseDown={()=>{onUpdate({project:""});setShowFP(false);}}>× Clear</div>
@@ -699,7 +699,7 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
       {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
         <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
-        <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="삭제">×</button>
+        <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
       </div>
     </div>
   );
@@ -716,13 +716,13 @@ function DownloadModal({ worklogs, onClose }) {
     const rows = worklogs
       .filter(w => { const ym = w.date?.slice(0,7)||""; return ym>=from && ym<=to; })
       .sort((a,b) => a.date?.localeCompare(b.date))
-      .map(w => ({ 날짜:w.date||"", 프로젝트:w.project||"", 핵심사항:w.keyPoint||"", 세부내용:w.details||"", 비고:w.notes||"" }));
-    if (!rows.length) { alert("해당 기간에 데이터가 없습니다."); return; }
+      .map(w => ({ Date:w.date||"", Project:w.project||"", "Key Point":w.keyPoint||"", Details:w.details||"", Notes:w.notes||"" }));
+    if (!rows.length) { alert("No data for selected period."); return; }
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{wch:12},{wch:22},{wch:30},{wch:40},{wch:20}];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "업무일지");
-    XLSX.writeFile(wb, `업무일지_${from}_${to}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Worklog");
+    XLSX.writeFile(wb, `worklog_${from}_${to}.xlsx`);
     onClose();
   };
 
@@ -732,9 +732,9 @@ function DownloadModal({ worklogs, onClose }) {
       <div style={{ background:"#fff", borderRadius:18, padding:"26px 24px 20px", width:300, boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
         onClick={e => e.stopPropagation()}>
         <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:4 }}>📥 Export to Excel</div>
-        <div style={{ fontSize:12, color:"#8aa0c0", marginBottom:18, lineHeight:1.6 }}>기간을 선택하여 xlsx 파일로 저장합니다.</div>
+        <div style={{ fontSize:12, color:"#8aa0c0", marginBottom:18, lineHeight:1.6 }}>Select a date range to export as xlsx.</div>
         <div style={{ display:"flex", gap:10, marginBottom:18 }}>
-          {[["시작", from, setFrom, showF, setShowF], ["종료", to, setTo, showT, setShowT]].map(([lbl, val, set, show, setShow]) => (
+          {[["From", from, setFrom, showF, setShowF], ["To", to, setTo, showT, setShowT]].map(([lbl, val, set, show, setShow]) => (
             <div key={lbl} style={{ flex:1 }}>
               <div style={{ fontSize:11, color:"#6b8bb5", fontWeight:700, marginBottom:4 }}>{lbl}</div>
               <div style={{ position:"relative" }}>
@@ -745,9 +745,9 @@ function DownloadModal({ worklogs, onClose }) {
           ))}
         </div>
         <button style={{ width:"100%", padding:"12px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
-          onClick={doDownload}>다운로드</button>
+          onClick={doDownload}>Download</button>
         <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
-          onClick={onClose}>취소</button>
+          onClick={onClose}>Cancel</button>
       </div>
     </div>
   );
@@ -792,7 +792,7 @@ function CalendarView({ items, folders }) {
 
   const grouped = {};
   filtered.forEach(item => {
-    const d = item.createdAt || "날짜 없음";
+    const d = item.createdAt || "No date";
     if (!grouped[d]) grouped[d] = [];
     grouped[d].push(item);
   });
@@ -815,18 +815,18 @@ function CalendarView({ items, folders }) {
 
   const doDownload = () => {
     const rows = filtered.map(item => ({
-      날짜: item.createdAt||"",
-      폴더: getFN(item.folder),
-      유형: item.type===T.HEADER?"헤더":item.type===T.TODO?"할일":"텍스트",
-      제목: item.title||"",
-      완료: item.type===T.TODO?(item.done?"완료":"진행"):"",
-      별표: item.starred?"★":"",
+      Date: item.createdAt||"",
+      Folder: getFN(item.folder),
+      Type: item.type===T.HEADER?"Header":item.type===T.TODO?"To-do":"Text",
+      Title: item.title||"",
+      Done: item.type===T.TODO?(item.done?"Yes":"No"):"",
+      Starred: item.starred?"★":"",
     }));
-    if (!rows.length) { alert("데이터가 없습니다."); return; }
+    if (!rows.length) { alert("No data to export."); return; }
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{wch:12},{wch:14},{wch:8},{wch:40},{wch:6},{wch:4}];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "캘린더");
+    XLSX.utils.book_append_sheet(wb, ws, "Calendar");
     XLSX.writeFile(wb, `calendar_${navYM||todayYM}.xlsx`);
     setShowDl(false);
   };
@@ -856,7 +856,7 @@ function CalendarView({ items, folders }) {
                 <div style={{ width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:allSelected?"#2563eb":"#c2d0e8",background:allSelected?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
                   {allSelected && <span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
                 </div>
-                <span style={{ fontSize:13, fontWeight:600, color:allSelected?"#2563eb":"#1e3a6e" }}>전체</span>
+                <span style={{ fontSize:13, fontWeight:600, color:allSelected?"#2563eb":"#1e3a6e" }}>All</span>
               </div>
               {folders.map(f => {
                 const on = filterFolders.has(f.name);
@@ -890,7 +890,7 @@ function CalendarView({ items, folders }) {
         {sortedYMs.length === 0 && (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", color:"#b0c4de" }}>
             <div style={{ fontSize:32, marginBottom:10 }}>◷</div>
-            <div style={{ fontSize:13 }}>{search||!allSelected ? "No results" : "항목이 없습니다."}</div>
+            <div style={{ fontSize:13 }}>{search||!allSelected ? "No results" : "No items."}</div>
           </div>
         )}
         {sortedYMs.map(ym => {
@@ -900,9 +900,9 @@ function CalendarView({ items, folders }) {
           return (
             <div key={ym} data-calym={ym} style={{ marginBottom:28 }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, marginTop:4 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#1e3a6e", background:"#eef3ff", borderRadius:20, padding:"4px 14px", flexShrink:0 }}>{yy}년 {parseInt(mm)}월</div>
+                <div style={{ fontSize:13, fontWeight:700, color:"#1e3a6e", background:"#eef3ff", borderRadius:20, padding:"4px 14px", flexShrink:0 }}>{yy} / {parseInt(mm)}</div>
                 <div style={{ flex:1, height:1, background:"rgba(37,99,235,.1)" }} />
-                <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0 }}>{total}건</span>
+                <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0 }}>{total}</span>
               </div>
               {dayEntries.map(([date, dayItems]) => (
                 <div key={date} style={{ marginBottom:12 }}>
@@ -919,7 +919,7 @@ function CalendarView({ items, folders }) {
                       <span style={{ fontSize:10, color:"#6b8bb5", background:"#f0f5fc", borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{getFN(item.folder)}</span>
                       {item.type===T.TODO && (
                         <span style={{ fontSize:10, borderRadius:8, padding:"2px 7px", flexShrink:0, ...(item.done?{color:"#065f46",background:"#d1fae5"}:{color:"#b45309",background:"#fef3c7"}) }}>
-                          {item.done?"완료":"진행"}
+                          {item.done?"Done":"Active"}
                         </span>
                       )}
                     </div>
@@ -950,19 +950,19 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
             <div style={{ width:17, height:17, borderRadius:4, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, ...(allSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}>
               {allSel && "✓"}
             </div>
-            <span style={{ fontSize:12, color:"#6b8bb5" }}>전체 선택</span>
+            <span style={{ fontSize:12, color:"#6b8bb5" }}>Select all</span>
           </div>
           <div style={{ display:"flex", gap:6 }}>
             {sel.size > 0 && (
               <>
                 <button style={{ background:"none", border:"1px solid #bfdbfe", borderRadius:7, padding:"5px 11px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }}
-                  onClick={() => { sel.forEach(id => onRestore(id)); setSel(new Set()); }}>복원({sel.size})</button>
+                  onClick={() => { sel.forEach(id => onRestore(id)); setSel(new Set()); }}>Restore ({sel.size})</button>
                 <button style={{ background:"none", border:"1px solid #fecaca", borderRadius:7, padding:"5px 11px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }}
-                  onClick={() => { sel.forEach(id => onPermDel(id)); setSel(new Set()); }}>삭제({sel.size})</button>
+                  onClick={() => { sel.forEach(id => onPermDel(id)); setSel(new Set()); }}>Delete ({sel.size})</button>
               </>
             )}
             <button style={{ background:"none", border:"1px solid #e5e7eb", borderRadius:7, padding:"5px 11px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#9ca3af" }}
-              onClick={() => { onEmpty(); setSel(new Set()); }}>전체 비우기</button>
+              onClick={() => { onEmpty(); setSel(new Set()); }}>Empty all</button>
           </div>
         </div>
       )}
@@ -982,11 +982,11 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13.5, color:"#4b5563", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:"line-through" }}>{item.title||"(no title)"}</div>
               <div style={{ fontSize:10, color:l<=3?"#e53e3e":"#9ca3af", marginTop:2 }}>
-                {l===0?"오늘 영구 삭제":`${l}일 후 자동 삭제`} · {item.originalFolderName||"알 수 없는 폴더"}
+                {l===0?"Deleted today":`Auto-delete in ${l} days`} · {item.originalFolderName||"Unknown folder"}
               </div>
             </div>
             <button style={{ background:"none", border:"1px solid #bfdbfe", borderRadius:7, color:"#2563eb", fontSize:11.5, padding:"4px 10px", cursor:"pointer", fontFamily:"inherit", fontWeight:600, flexShrink:0 }}
-              onClick={() => onRestore(item.id)}>복원</button>
+              onClick={() => onRestore(item.id)}>Restore</button>
             <button style={{ background:"none", border:"none", color:"#d0ddef", fontSize:18, cursor:"pointer", padding:"0 2px", flexShrink:0 }}
               onClick={() => onPermDel(item.id)}>×</button>
           </div>
@@ -1162,16 +1162,16 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
           <div style={{ background:"#fff", borderRadius:18, padding:"28px 24px 22px", width:280, boxShadow:"0 16px 48px rgba(15,32,68,.28)", textAlign:"center" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize:36, marginBottom:8 }}>🗑</div>
-            <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:8 }}>폴더 삭제</div>
+            <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:8 }}>Delete Folder</div>
             <div style={{ fontSize:13, color:"#6b8bb5", marginBottom:22, lineHeight:1.6 }}>
-              <span style={{ fontWeight:700, color:"#1e3a6e" }}>"{confirmDelete.name}"</span> 폴더를 삭제하시겠습니까?<br/>
-              폴더 안의 노트는 삭제되지 않습니다.
+              <span style={{ fontWeight:700, color:"#1e3a6e" }}>"{confirmDelete.name}"</span> Are you sure you want to delete this folder?<br/>
+              Notes inside will not be deleted.
             </div>
             <div style={{ display:"flex", gap:10 }}>
               <button style={{ flex:1, padding:"11px", borderRadius:10, border:"1.5px solid #e0eaf8", background:"transparent", color:"#6b8bb5", fontSize:14, cursor:"pointer", fontFamily:"inherit", fontWeight:600 }}
-                onClick={() => setConfirmDelete(null)}>취소</button>
+                onClick={() => setConfirmDelete(null)}>Cancel</button>
               <button style={{ flex:1, padding:"11px", borderRadius:10, border:"none", background:"#e53e3e", color:"#fff", fontSize:14, cursor:"pointer", fontFamily:"inherit", fontWeight:700, boxShadow:"0 4px 12px rgba(229,62,62,.3)" }}
-                onClick={() => deleteFolder(confirmDelete)}>삭제</button>
+                onClick={() => deleteFolder(confirmDelete)}>Delete</button>
             </div>
           </div>
         </div>
@@ -1295,7 +1295,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               </div>
             </div>
             <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}
-              onClick={onLogout}>로그아웃</button>
+              onClick={onLogout}>Log out</button>
           </div>
         ) : (
           <button style={{ display:"flex", alignItems:"center", gap:8, width:"100%", background:"rgba(255,255,255,.95)", border:"none", borderRadius:10, padding:"10px 14px", cursor:"pointer", fontSize:12.5, fontWeight:600, color:"#1650b8", boxShadow:"0 2px 8px rgba(0,0,0,.15)" }}
@@ -1306,7 +1306,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            <span>Google로 로그인</span>
+            <span>Sign in with Google</span>
           </button>
         )}
       </div>
@@ -1429,7 +1429,7 @@ function LinkModal({ onConfirm, onClose }) {
             onKeyDown={e => e.key==="Enter" && submit()}
           />
           {ytDetected && (
-            <div style={{ fontSize:11, color:"#e53e3e", marginTop:4, fontWeight:500 }}>▶ YouTube 동영상 감지됨</div>
+            <div style={{ fontSize:11, color:"#e53e3e", marginTop:4, fontWeight:500 }}>▶ YouTube video detected지됨</div>
           )}
         </div>
 
@@ -1437,7 +1437,7 @@ function LinkModal({ onConfirm, onClose }) {
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#6b8bb5", marginBottom:5, letterSpacing:"0.5px", display:"flex", alignItems:"center", gap:6 }}>
             Title
-            {fetching && <span style={{ fontSize:10, color:"#94a3b8", fontWeight:400 }}>불러오는 중...</span>}
+            {fetching && <span style={{ fontSize:10, color:"#94a3b8", fontWeight:400 }}>Loading...</span>}
           </div>
           <input
             style={{ ...mInput, marginBottom:0 }}
@@ -1449,9 +1449,9 @@ function LinkModal({ onConfirm, onClose }) {
         </div>
 
         <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-          <button style={mBtnC} onClick={onClose}>취소</button>
+          <button style={mBtnC} onClick={onClose}>Cancel</button>
           <button style={{ ...mBtnP, background: ytDetected ? "#e53e3e" : "#2563eb", boxShadow: ytDetected ? "0 4px 10px rgba(229,62,62,.3)" : "0 4px 10px rgba(37,99,235,.3)" }}
-            onClick={submit}>추가</button>
+            onClick={submit}>Add</button>
         </div>
       </div>
     </div>
@@ -2435,7 +2435,7 @@ function AppInner() {
   const shareSel = () => {
     const txt = [...selected].map(id => items.find(i => i.id===id)?.title||"").join("\n");
     if (navigator.share) navigator.share({ title:"Notes", text:txt });
-    else { navigator.clipboard?.writeText(txt); alert("클립보드에 복사되었습니다."); }
+    else { navigator.clipboard?.writeText(txt); alert("Copied to clipboard."); }
     setSelected(new Set()); setSelMode(false);
   };
   const togSel   = id => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -2480,7 +2480,7 @@ function AppInner() {
       setDataLoaded(true);
       setShowLogin(false);
     },
-    onError: () => alert("Google 로그인에 실패했습니다."),
+    onError: () => alert("Google login failed."),
   });
 
   const handleLogout = () => {
@@ -2715,20 +2715,20 @@ function AppInner() {
                     <div style={{ width:18, height:18, borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, ...(allSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}>
                       {allSel && "✓"}
                     </div>
-                    <span style={{ fontSize:12, color:"#4b6fa8" }}>전체</span>
+                    <span style={{ fontSize:12, color:"#4b6fa8" }}>All</span>
                   </div>
                   {selected.size > 0 && (
                     <>
-                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>공유</button>
-                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>삭제</button>
+                      <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                      <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                     </>
                   )}
                   <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
-                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>취소</button>
+                    onClick={() => { setSelMode(false); setSelected(new Set()); }}>Cancel</button>
                 </div>
               ) : (
                 <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#4b6fa8" }}
-                  onClick={() => setSelMode(true)}>선택</button>
+                  onClick={() => setSelMode(true)}>Select</button>
               )
             )}
             {!isSpecial && !selMode && (
@@ -2837,12 +2837,12 @@ function AppInner() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Google로 로그인</div>
-            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>로그인하면 노트가 Google Drive에<br/>자동 동기화됩니다. (현재 데모 모드)</p>
+            <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:6 }}>Sign in with Google</div>
+            <p style={{ fontSize:13, color:"#6b8bb5", marginBottom:20, lineHeight:1.6 }}>Sign in to sync your notes with Google Drive에<br/>자동 동기화됩니다. (현재 데모 모드)</p>
             <button style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"13px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 10px rgba(37,99,235,.3)" }}
               onClick={() => { setShowLogin(false); googleLogin(); }}>Continue with Google</button>
             <button style={{ width:"100%", padding:"9px", borderRadius:10, border:"none", background:"transparent", color:"#9ca3af", fontSize:13, cursor:"pointer", fontFamily:"inherit", marginTop:8 }}
-              onClick={() => setShowLogin(false)}>취소</button>
+              onClick={() => setShowLogin(false)}>Cancel</button>
           </div>
         </div>
       )}
