@@ -82,13 +82,17 @@ function useSortable(containerRef, items, setItems) {
     const container = containerRef.current;
     if (!container) return;
 
-    // Snapshot DOM positions of all sortable rows
+    // Find the specific row by data-sortidx VALUE (not array position)
+    // This handles cases where some rows are hidden/not rendered
     const rows = Array.from(container.querySelectorAll('[data-sortidx]'));
-    if (!rows[index]) return;
-    const rect = rows[index].getBoundingClientRect();
+    const targetRow = rows.find(r => parseInt(r.getAttribute('data-sortidx')) === index);
+    if (!targetRow) return;
+    const rect = targetRow.getBoundingClientRect();
+    // Build a visible-rows-only index map for drag positioning
+    const visibleRows = rows; // all currently rendered rows
 
     // Ghost
-    const ghost = rows[index].cloneNode(true);
+    const ghost = targetRow.cloneNode(true);
     ghost.style.cssText = [
       'position:fixed', 'pointer-events:none', 'z-index:9999',
       'opacity:0.82', 'box-shadow:0 6px 24px rgba(15,32,68,.2)',
@@ -105,7 +109,7 @@ function useSortable(containerRef, items, setItems) {
     D.current.containerEl = container;
 
     // Dim the source row directly via DOM
-    rows[index].style.opacity = '0.25';
+    targetRow.style.opacity = '0.25';
 
     // Drop-line indicator
     let line = document.getElementById('__sortline__');
@@ -158,18 +162,24 @@ function useSortable(containerRef, items, setItems) {
 
       // Restore source row opacity
       const rs = Array.from(D.current.containerEl?.querySelectorAll('[data-sortidx]') || []);
-      if (rs[D.current.active]) rs[D.current.active].style.opacity = '';
+      const activeRow = rs.find(r => parseInt(r.getAttribute('data-sortidx')) === D.current.active);
+      if (activeRow) activeRow.style.opacity = '';
 
       const from = D.current.active;
-      let to = D.current.insert;
-      // Adjust: after removal, indices shift
-      if (to > from) to = to - 1;
+      // D.current.insert is a visible-row array index — convert to data-sortidx value
+      const insertRow = rs[D.current.insert];
+      const insertSortIdx = insertRow ? parseInt(insertRow.getAttribute('data-sortidx')) : -1;
 
-      if (from !== to && to >= 0) {
+      if (from !== -1 && insertSortIdx !== -1 && from !== insertSortIdx) {
         const arr = [...itemsRef.current];
-        const [moved] = arr.splice(from, 1);
-        arr.splice(to, 0, moved);
-        setItems(arr);
+        const fromPos = arr.findIndex((_, i) => i === from);
+        const toPos   = arr.findIndex((_, i) => i === insertSortIdx);
+        if (fromPos !== -1 && toPos !== -1) {
+          const [moved] = arr.splice(fromPos, 1);
+          const adjustedTo = fromPos < toPos ? toPos - 1 : toPos;
+          arr.splice(adjustedTo, 0, moved);
+          setItems(arr);
+        }
       }
 
       D.current = makeDragState();
@@ -949,8 +959,18 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [collapsedSB,  setCollapsedSB]  = useState(new Set());
-  const toggleSB = id => setCollapsedSB(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  const [collapsedSB, setCollapsedSB] = useState(() => {
+    try {
+      const saved = localStorage.getItem("notes_collapsedSB");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+  const toggleSB = id => setCollapsedSB(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    try { localStorage.setItem("notes_collapsedSB", JSON.stringify([...n])); } catch {}
+    return n;
+  });
   const containerRef = useRef(null);
   const { beginDrag } = useSortable(containerRef, sidebarItems, setSidebarItems);
   const NI = { display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:8, cursor:"pointer", fontWeight:500, marginBottom:1, userSelect:"none" };
@@ -1940,8 +1960,18 @@ function AppInner() {
   const [showSidebar,  setShowSidebar]  = useState(false);
   const [selMode,      setSelMode]      = useState(false);
   const [selected,     setSelected]     = useState(new Set());
-  const [collapsedHdrs,setCollapsedHdrs] = useState(new Set());
-  const toggleHdr = id => setCollapsedHdrs(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  const [collapsedHdrs,setCollapsedHdrs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("notes_collapsedHdrs");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+  const toggleHdr = id => setCollapsedHdrs(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    try { localStorage.setItem("notes_collapsedHdrs", JSON.stringify([...n])); } catch {}
+    return n;
+  });
   const [user,         setUser]         = useState(null);
   const [accessToken,  setAccessToken]  = useState(null);
   const [showLogin,    setShowLogin]    = useState(false);
@@ -2050,6 +2080,8 @@ function AppInner() {
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
     localStorage.removeItem("notes_worklogs");
+    localStorage.removeItem("notes_collapsedHdrs");
+    localStorage.removeItem("notes_collapsedSB");
     setSidebarItems(initSidebar);
     setItems(initItems);
     setWorklogs(initWorklogs);
