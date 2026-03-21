@@ -399,7 +399,7 @@ function FloatingToolbar({ tb, exec, tbRef }) {
             onMouseDown={e=>{e.preventDefault();exec("foreColor",c);}}/>
         ))}
         <div style={rtDiv}/>
-        {[["#fef08a","노랑"],["#bbf7d0","초록"],["#bfdbfe","파랑"],["transparent","제거"]].map(([c,t])=>(
+        {[["#fef08a","Yellow"],["#bbf7d0","Green"],["#bfdbfe","Blue"],["transparent","Clear"]].map(([c,t])=>(
           <div key={c} title={t} style={{width:13,height:13,borderRadius:3,background:c==="transparent"?"#fff":c,border:c==="transparent"?"2px dashed #94a3b8":"2px solid rgba(0,0,0,.07)",cursor:"pointer"}}
             onMouseDown={e=>{e.preventDefault();exec("hiliteColor",c);}}/>
         ))}
@@ -425,11 +425,11 @@ function DatePicker({ value, onChange, onClose }) {
     <div style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <button onClick={() => setCur(p => p.m===0 ? {y:p.y-1,m:11} : {...p,m:p.m-1})} style={PB}>‹</button>
-        <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{cur.y}년 {cur.m+1}월</span>
+        <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{cur.y} / {cur.m+1}</span>
         <button onClick={() => setCur(p => p.m===11 ? {y:p.y+1,m:0} : {...p,m:p.m+1})} style={PB}>›</button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2 }}>
-        {["일","월","화","수","목","금","토"].map(d => (
+        {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
           <div key={d} style={{ textAlign:"center", fontSize:10, color:"#94a3b8", fontWeight:600, padding:"2px 0" }}>{d}</div>
         ))}
         {cells.map((d, i) => (
@@ -449,14 +449,14 @@ function DatePicker({ value, onChange, onClose }) {
 function MonthPicker({ value, onChange, onClose, label }) {
   const initY = value ? parseInt(value.split(".")[0]) : new Date().getFullYear();
   const [y, setY] = useState(initY);
-  const MN = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
   return (
     <div style={{ position:"absolute", zIndex:700, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.2)", padding:16, width:210, top:"100%", right:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       {label && <div style={{ fontSize:11, fontWeight:700, color:"#2563eb", letterSpacing:"1px", marginBottom:10 }}>{label}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <button onClick={() => setY(y-1)} style={PB}>‹</button>
-        <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{y}년</span>
+        <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{y}</span>
         <button onClick={() => setY(y+1)} style={PB}>›</button>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:4 }}>
@@ -500,10 +500,10 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
     });
   };
   const filterLabel = allSelected
-    ? "전체"
+    ? "All"
     : filterFolders.size === 1
       ? [...filterFolders][0]
-      : `${filterFolders.size}개 선택`;
+      : `${filterFolders.size} selected`;
 
   const q = search.trim().toLowerCase();
   const filtered = worklogs.filter(w => {
@@ -547,7 +547,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         <div style={{flex:1,minWidth:120,position:"relative"}}>
           <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:"#a0b4cc",fontSize:13}}>🔍</span>
           <input style={{width:"100%",padding:"7px 10px 7px 28px",borderRadius:9,border:"1.5px solid #e0eaf8",fontSize:12.5,color:"#1e3a6e",outline:"none",fontFamily:"inherit",background:"#fff",boxSizing:"border-box"}}
-            placeholder="검색..." value={search} onChange={e=>setSearch(e.target.value)} />
+            placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
         </div>
 
         {/* Folder filter button */}
@@ -587,7 +587,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
           {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="년월로 이동"/>}
         </div>
-        <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ 엑셀</button>
+        <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>삭제({selected.size})</button>}
         <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ 추가</button>
       </div>
@@ -597,7 +597,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         {sortedYMs.length===0 && (
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 0",color:"#b0c4de"}}>
             <div style={{fontSize:32,marginBottom:10}}>📋</div>
-            <div style={{fontSize:13}}>{search||!allSelected?"결과 없음":"업무일지를 작성해보세요."}</div>
+            <div style={{fontSize:13}}>{search||!allSelected?"No results":"Start writing your worklog."}</div>
           </div>
         )}
         {sortedYMs.map(ym => {
@@ -614,8 +614,8 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
               </div>
               {/* Column headers */}
               <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",marginBottom:2}}>
-                <div/><div>날짜</div><div>핵심사항</div><div>폴더</div>
-                {!isMobile&&<><div>세부내용</div><div>비고</div></>}
+                <div/><div>Date</div><div>Key Point</div><div>Folder</div>
+                {!isMobile&&<><div>Details</div><div>Notes</div></>}
                 <div/>
               </div>
               {sortedDays.map(date=>(
@@ -654,14 +654,14 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
       {/* Date pill */}
       <div style={{position:"relative"}}>
         {wi===0
-          ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"날짜"}</div>
+          ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"Date"}</div>
           : <div style={{...wDatePill,opacity:.2,pointerEvents:"none",fontSize:11}}>{entry.date}</div>
         }
         {showDP && <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>}
       </div>
 
       {/* Key point */}
-      <input style={wCell} value={entry.keyPoint} placeholder="핵심사항..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
+      <input style={wCell} value={entry.keyPoint} placeholder="Key point..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
 
       {/* Folder picker pill */}
       <div style={{position:"relative"}}>
@@ -671,7 +671,7 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
           background: selFolder?"#eff6ff":"#f8faff",
           overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
           onClick={()=>setShowFP(v=>!v)}>
-          {selFolder ? entry.project : "폴더"}
+          {selFolder ? entry.project : "Folder"}
         </div>
         {showFP && (
           <div style={{position:"absolute",zIndex:500,background:"#fff",borderRadius:12,
@@ -680,7 +680,7 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
             <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>폴더 선택</div>
             {entry.project && (
               <div style={{padding:"8px 14px",fontSize:12,color:"#e53e3e",cursor:"pointer",fontWeight:500,borderBottom:"1px solid #f0f4fa"}}
-                onMouseDown={()=>{onUpdate({project:""});setShowFP(false);}}>× 선택 해제</div>
+                onMouseDown={()=>{onUpdate({project:""});setShowFP(false);}}>× Clear</div>
             )}
             {folders.map(f=>(
               <div key={f.id}
@@ -695,10 +695,10 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
         )}
       </div>
 
-      {!isMobile && <input style={wCell} value={entry.details} placeholder="세부내용..." onChange={e=>onUpdate({details:e.target.value})}/>}
-      {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="비고..." onChange={e=>onUpdate({notes:e.target.value})}/>}
+      {!isMobile && <input style={wCell} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
+      {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
-        <button style={wRowBtn} onClick={onAddBelow} title="행 추가">＋</button>
+        <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
         <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="삭제">×</button>
       </div>
     </div>
@@ -731,7 +731,7 @@ function DownloadModal({ worklogs, onClose }) {
       onClick={onClose}>
       <div style={{ background:"#fff", borderRadius:18, padding:"26px 24px 20px", width:300, boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
         onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:4 }}>📥 엑셀 다운로드</div>
+        <div style={{ fontSize:15, fontWeight:700, color:"#0f2044", marginBottom:4 }}>📥 Export to Excel</div>
         <div style={{ fontSize:12, color:"#8aa0c0", marginBottom:18, lineHeight:1.6 }}>기간을 선택하여 xlsx 파일로 저장합니다.</div>
         <div style={{ display:"flex", gap:10, marginBottom:18 }}>
           {[["시작", from, setFrom, showF, setShowF], ["종료", to, setTo, showT, setShowT]].map(([lbl, val, set, show, setShow]) => (
@@ -776,7 +776,7 @@ function CalendarView({ items, folders }) {
   const toggleFF = name => setFilterFolders(prev => {
     const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n;
   });
-  const filterLabel = allSelected ? "전체" : filterFolders.size === 1 ? [...filterFolders][0] : `${filterFolders.size}개 선택`;
+  const filterLabel = allSelected ? "All" : filterFolders.size === 1 ? [...filterFolders][0] : `${filterFolders.size} selected`;
 
   const getFN  = id => folders.find(f => f.id===id)?.name || "—";
   const getFId = id => folders.find(f => f.id===id);
@@ -839,7 +839,7 @@ function CalendarView({ items, folders }) {
         <div style={{ flex:1, minWidth:120, position:"relative" }}>
           <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"#a0b4cc", fontSize:13 }}>🔍</span>
           <input style={{ width:"100%", padding:"7px 10px 7px 28px", borderRadius:9, border:"1.5px solid #e0eaf8", fontSize:12.5, color:"#1e3a6e", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box" }}
-            placeholder="검색..." value={search} onChange={e => setSearch(e.target.value)} />
+            placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
         {/* Folder filter */}
@@ -882,7 +882,7 @@ function CalendarView({ items, folders }) {
 
         {/* Excel download */}
         <button style={{ ...wBtn, background:"#2563eb", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(37,99,235,.3)" }}
-          onClick={doDownload}>↓ 엑셀</button>
+          onClick={doDownload}>↓ Excel</button>
       </div>
 
       {/* List */}
@@ -890,7 +890,7 @@ function CalendarView({ items, folders }) {
         {sortedYMs.length === 0 && (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", color:"#b0c4de" }}>
             <div style={{ fontSize:32, marginBottom:10 }}>◷</div>
-            <div style={{ fontSize:13 }}>{search||!allSelected ? "결과 없음" : "항목이 없습니다."}</div>
+            <div style={{ fontSize:13 }}>{search||!allSelected ? "No results" : "항목이 없습니다."}</div>
           </div>
         )}
         {sortedYMs.map(ym => {
@@ -914,7 +914,7 @@ function CalendarView({ items, folders }) {
                   {dayItems.map(item => (
                     <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:9, padding:"10px 14px", boxShadow:"0 1px 3px rgba(15,32,68,.05)", marginBottom:3 }}>
                       <span style={{ fontSize:12, fontWeight:700, width:16, flexShrink:0, textAlign:"center", color:tColor(item.type) }}>{tIcon(item.type)}</span>
-                      <span style={{ flex:1, fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(제목 없음)"}</span>
+                      <span style={{ flex:1, fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(no title)"}</span>
                       {item.starred && <span style={{ color:"#f59e0b", fontSize:12 }}>★</span>}
                       <span style={{ fontSize:10, color:"#6b8bb5", background:"#f0f5fc", borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{getFN(item.folder)}</span>
                       {item.type===T.TODO && (
@@ -980,7 +980,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
             <div style={{ width:17, height:17, borderRadius:4, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#fff", fontWeight:700, cursor:"pointer", flexShrink:0, ...(isSel?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
               onClick={() => togSel(item.id)}>{isSel && "✓"}</div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13.5, color:"#4b5563", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:"line-through" }}>{item.title||"(제목 없음)"}</div>
+              <div style={{ fontSize:13.5, color:"#4b5563", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:"line-through" }}>{item.title||"(no title)"}</div>
               <div style={{ fontSize:10, color:l<=3?"#e53e3e":"#9ca3af", marginTop:2 }}>
                 {l===0?"오늘 영구 삭제":`${l}일 후 자동 삭제`} · {item.originalFolderName||"알 수 없는 폴더"}
               </div>
@@ -1356,14 +1356,14 @@ function HiddenSection({ section, isMobile, onUpdate, onDelete }) {
           <span style={{ display:"inline-block", transition:"transform .2s", transform:section.open?"rotate(0deg)":"rotate(-90deg)", fontSize:13 }}>▾</span>
         </button>
         <input style={{ color:"#2a5ba8", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:12.5, fontWeight:600, flex:1 }}
-          value={section.label} onChange={e => onUpdate({ label:e.target.value })} placeholder="섹션 제목..."
+          value={section.label} onChange={e => onUpdate({ label:e.target.value })} placeholder="Section title..."
           onClick={e => e.stopPropagation()} />
         <span style={{ color:"#c0cfe8", fontSize:15, cursor:"pointer", padding:"0 2px" }} onClick={onDelete}>×</span>
       </div>
       {section.open && (
         <div style={{ padding:"10px 12px", borderTop:"1px solid #e8eef8" }}>
           <RichText html={section.content||""} onChange={v => onUpdate({ content:v })}
-            placeholder="내용을 입력하세요..." style={{ fontSize:isMobile?13.5:13, minHeight:36 }} />
+            placeholder="Write content here..." style={{ fontSize:isMobile?13.5:13, minHeight:36 }} />
         </div>
       )}
     </div>
@@ -1414,7 +1414,7 @@ function LinkModal({ onConfirm, onClose }) {
       <div style={{ background:"#fff", borderRadius:18, padding:"28px 24px 22px", width:310, boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
         onClick={e => e.stopPropagation()}>
         <div style={{ fontSize:16, fontWeight:700, color:"#0f2044", marginBottom:16 }}>
-          {ytDetected ? "▶ YouTube 링크 추가" : "🔗 링크 추가"}
+          {ytDetected ? "▶ YouTube Link" : "🔗 Add Link"}
         </div>
 
         {/* URL first */}
@@ -1436,12 +1436,12 @@ function LinkModal({ onConfirm, onClose }) {
         {/* Label */}
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:11, fontWeight:700, color:"#6b8bb5", marginBottom:5, letterSpacing:"0.5px", display:"flex", alignItems:"center", gap:6 }}>
-            제목
+            Title
             {fetching && <span style={{ fontSize:10, color:"#94a3b8", fontWeight:400 }}>불러오는 중...</span>}
           </div>
           <input
             style={{ ...mInput, marginBottom:0 }}
-            placeholder={ytDetected ? "동영상 제목을 입력하거나 자동 입력됩니다" : "링크 이름 (선택)"}
+            placeholder={ytDetected ? "Video title (auto-filled)" : "Label (optional)"}
             value={label}
             onChange={e => setLabel(e.target.value)}
             onKeyDown={e => e.key==="Enter" && submit()}
@@ -1524,7 +1524,7 @@ function RichTableCell({ content, onChange, disabled }) {
                 onMouseDown={e=>{e.preventDefault();exec("foreColor",c);}}/>
             ))}
             <div style={rtDiv}/>
-            {[["#fef08a","노랑"],["#bbf7d0","초록"],["#bfdbfe","파랑"],["transparent","제거"]].map(([c,t])=>(
+            {[["#fef08a","Yellow"],["#bbf7d0","Green"],["#bfdbfe","Blue"],["transparent","Clear"]].map(([c,t])=>(
               <div key={c} title={t} style={{width:13,height:13,borderRadius:3,background:c==="transparent"?"#fff":c,border:c==="transparent"?"2px dashed #94a3b8":"2px solid rgba(0,0,0,.07)",cursor:"pointer"}}
                 onMouseDown={e=>{e.preventDefault();exec("hiliteColor",c);}}/>
             ))}
@@ -1816,7 +1816,7 @@ function TableBlock({ table, onUpdate, onDelete }) {
           </tbody>
         </table>
       </div>
-      {!mode && <div style={{fontSize:10,color:"#b0c4de",marginTop:4}}>셀 클릭 후 Shift/Cmd 추가 선택 → 색 적용</div>}
+      {!mode && <div style={{fontSize:10,color:"#b0c4de",marginTop:4}}>Select cells to apply color (Shift/Cmd for multiple)</div>}
     </div>
   );
 }
@@ -1991,13 +1991,13 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
         <div style={{ display:"flex", alignItems:"center", gap:8, padding:pad, paddingBottom:6 }}>
           <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
-            value={item.title} placeholder="제목..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
+            value={item.title} placeholder="Title..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
             onClick={()=>onUpdate({starred:!item.starred})}>★</span>
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
-          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="내용을 입력하세요..." style={{fontSize:isMobile?14:13.5}} />
+          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
         </div>
         {(item.hiddenSections||[]).map(h=>(
           <HiddenSection key={h.id} section={h} isMobile={isMobile} onUpdate={p=>updHS(h.id,p)} onDelete={()=>delHS(h.id)} />
