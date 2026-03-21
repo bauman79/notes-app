@@ -222,31 +222,39 @@ function getNextId() {
 let nextId = getNextId();
 
 const initSidebar = [
-  { id:"f1", type:"folder", name:"PROJECT" },
-  { id:"f2", type:"folder", name:"AREA" },
-  { id:"div1", type:"divider" },
-  { id:"f3", type:"folder", name:"RESOURCE" },
-  { id:"f4", type:"folder", name:"ARCHIVE" },
+  // ── PROJECT ──
+  { id:"sh1", type:"sheader", label:"PROJECT" },
+  { id:"f1",  type:"folder",  name:"Work" },
+  { id:"f2",  type:"folder",  name:"Personal" },
+  { id:"f3",  type:"folder",  name:"Side Project" },
+  { id:"f4",  type:"folder",  name:"Client" },
+  // ── AREA ──
+  { id:"sh2", type:"sheader", label:"AREA" },
+  { id:"f5",  type:"folder",  name:"Health" },
+  { id:"f6",  type:"folder",  name:"Finance" },
+  { id:"f7",  type:"folder",  name:"Learning" },
+  { id:"f8",  type:"folder",  name:"Relationships" },
+  // ── RESOURCE ──
+  { id:"sh3", type:"sheader", label:"RESOURCE" },
+  { id:"f9",  type:"folder",  name:"References" },
+  { id:"f10", type:"folder",  name:"Templates" },
+  { id:"f11", type:"folder",  name:"Ideas" },
+  { id:"f12", type:"folder",  name:"Reading List" },
+  // ── ARCHIVE ──
+  { id:"sh4", type:"sheader", label:"ARCHIVE" },
+  { id:"f13", type:"folder",  name:"2025" },
+  { id:"f14", type:"folder",  name:"2024" },
+  { id:"f15", type:"folder",  name:"Completed" },
+  { id:"f16", type:"folder",  name:"Inactive" },
 ];
 
 const initItems = [
-  { id:"i1", type:T.HEADER, title:"Q2 Product Launch", folder:"f1", starred:false, createdAt:"2026.03.19" },
-  { id:"i2", type:T.TODO, title:"Landing page copy finalized", folder:"f1", done:false, starred:false, createdAt:"2026.03.19" },
-  { id:"i3", type:T.TODO, title:"Stakeholder deck reviewed", folder:"f1", done:true, starred:true, createdAt:"2026.03.18" },
-  { id:"i4", type:T.TEXT, title:"Launch strategy overview", folder:"f1", starred:true, createdAt:"2026.03.17",
-    body:"Core objective: drive 20% adoption in the first 60 days. Focus channels are email, in-app messaging, and partner co-marketing.",
-    hiddenSections:[{id:"h1",label:"Risk factors",content:"Delayed QA sign-off may push launch by one week. Contingency: soft launch to beta users first.",open:false}],
-    links:[] },
-  { id:"i5", type:T.TEXT, title:"Competitor pricing notes", folder:"f1", starred:false, createdAt:"2026.03.19", body:"Three main competitors revised pricing in Q1. Our mid-tier plan is currently 12% above market average.", hiddenSections:[], links:[] },
-  { id:"i6", type:T.HEADER, title:"Team Operations", folder:"f2", starred:false, createdAt:"2026.03.15" },
-  { id:"i7", type:T.TODO, title:"Weekly sync agenda prepared", folder:"f2", done:false, starred:true, createdAt:"2026.03.16" },
-  { id:"i8", type:T.TEXT, title:"Onboarding checklist", folder:"f2", starred:false, createdAt:"2026.03.14", body:"New member onboarding: tool access, intro meetings with each team lead, 30-day check-in scheduled.", hiddenSections:[], links:[] },
-  { id:"i9", type:T.HEADER, title:"Learning & Development", folder:"f3", starred:false, createdAt:"2026.03.10" },
-  { id:"i10", type:T.TODO, title:"Book summary: Thinking Fast and Slow", folder:"f3", done:false, starred:false, createdAt:"2026.03.12" },
-  { id:"i11", type:T.TEXT, title:"Useful frameworks", folder:"f3", starred:true, createdAt:"2026.03.08",
-    body:"MECE, First Principles, Jobs-to-be-Done, and the Eisenhower Matrix are the four I keep coming back to.",
+  { id:"i1", type:T.HEADER, title:"Getting Started", folder:"f1", starred:false, createdAt:"2026.03.21" },
+  { id:"i2", type:T.TODO, title:"Explore folders and headers", folder:"f1", done:false, starred:false, createdAt:"2026.03.21" },
+  { id:"i3", type:T.TODO, title:"Add your first note", folder:"f1", done:false, starred:false, createdAt:"2026.03.21" },
+  { id:"i4", type:T.TEXT, title:"Welcome to the NOTES", folder:"f1", starred:true, createdAt:"2026.03.21",
+    body:"Organize your work with folders, headers, to-dos, and rich text. Sign in with Google to sync everything to your Drive.",
     hiddenSections:[], links:[] },
-  { id:"i12", type:T.TODO, title:"Archive 2025 project files", folder:"f4", done:false, starred:false, createdAt:"2026.03.01" },
 ];
 
 const initWorklogs = [
