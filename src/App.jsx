@@ -415,21 +415,14 @@ function FloatingToolbar({ tb, exec, tbRef }) {
 function DatePicker({ value, onChange, onClose }) {
   const parse = d => d ? { y:parseInt(d.split(".")[0]), m:parseInt(d.split(".")[1])-1 } : { y:new Date().getFullYear(), m:new Date().getMonth() };
   const [cur, setCur] = useState(() => parse(value));
-  const ref = useRef(null);
   const dim = (y,m) => new Date(y,m+1,0).getDate();
   const fd  = (y,m) => new Date(y,m,1).getDay();
   const pad = n => String(n).padStart(2,"0");
   const cells = [...Array(fd(cur.y,cur.m)).fill(null), ...Array(dim(cur.y,cur.m)).fill(0).map((_,i)=>i+1)];
   const isSel = d => value === `${cur.y}.${pad(cur.m+1)}.${pad(d)}`;
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener("mousedown", handler);
-    document.addEventListener("touchstart", handler);
-    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
-  }, [onClose]);
   return (
-    <div ref={ref} style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
+    <div style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
         <button onClick={() => setCur(p => p.m===0 ? {y:p.y-1,m:11} : {...p,m:p.m-1})} style={PB}>‹</button>
         <span style={{ fontSize:13.5, fontWeight:700, color:"#1e3a6e" }}>{cur.y} / {cur.m+1}</span>
@@ -456,17 +449,10 @@ function DatePicker({ value, onChange, onClose }) {
 function MonthPicker({ value, onChange, onClose, label }) {
   const initY = value ? parseInt(value.split(".")[0]) : new Date().getFullYear();
   const [y, setY] = useState(initY);
-  const ref = useRef(null);
   const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener("mousedown", handler);
-    document.addEventListener("touchstart", handler);
-    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
-  }, [onClose]);
   return (
-    <div ref={ref} style={{ position:"absolute", zIndex:700, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.2)", padding:16, width:210, top:"100%", right:0, marginTop:4, border:"1px solid #e0eaf8" }}>
+    <div style={{ position:"absolute", zIndex:700, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.2)", padding:16, width:210, top:"100%", right:0, marginTop:4, border:"1px solid #e0eaf8" }}>
       {label && <div style={{ fontSize:11, fontWeight:700, color:"#2563eb", letterSpacing:"1px", marginBottom:10 }}>{label}</div>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
         <button onClick={() => setY(y-1)} style={PB}>‹</button>
@@ -498,6 +484,12 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
   const [navYM,         setNavYM]         = useState(null);
   const [showNav,       setShowNav]       = useState(false);
   const [showDl,        setShowDl]        = useState(false);
+  // Close popups on window click
+  useEffect(() => {
+    const close = () => { setShowNav(false); setShowFilter(false); };
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
   const [selected,      setSelected]      = useState(new Set());
   // Multi-select folder filter: empty Set = show all
   const [filterFolders, setFilterFolders] = useState(new Set());
@@ -567,12 +559,11 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         {/* Folder filter button */}
         <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
           <button style={{...wBtn, ...(allSelected?{}:{background:"#eef3ff",color:"#2563eb",borderColor:"#bfdbfe"})}}
-            onClick={()=>setShowFilter(v=>!v)}>
+            onClick={e=>{e.stopPropagation();setShowFilter(v=>!v);}}>
             ⊞ {filterLabel}
           </button>
-          {showFilter && (<>
-            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowFilter(false)} />
-            <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",zIndex:400,minWidth:170,overflow:"hidden"}}>
+          {showFilter && (
+            <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",zIndex:400,minWidth:170,overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
               <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Folder Filter</div>
               {/* 전체 */}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",cursor:"pointer",borderBottom:"1px solid #f0f4fa",background:allSelected?"#eff6ff":"transparent"}}
@@ -595,12 +586,12 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
                 );
               })}
             </div>
-          </>)}
+          )}
         </div>
 
         <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
-          <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/>}
+          <button style={wBtn} onClick={e=>{e.stopPropagation();setShowNav(v=>!v);}}>📅 {navYM||todayYM}</button>
+          {showNav && <div onClick={e=>e.stopPropagation()}><MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/></div>}
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>Delete ({selected.size})</button>}
@@ -867,9 +858,8 @@ function CalendarView({ items, folders }) {
             onClick={() => setShowFilter(v => !v)}>
             ⊞ {filterLabel}
           </button>
-          {showFilter && (<>
-            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={() => setShowFilter(false)} />
-            <div style={{ position:"absolute", top:"100%", left:0, marginTop:4, background:"#fff", borderRadius:12, boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8", zIndex:400, minWidth:170, overflow:"hidden" }}>
+          {showFilter && (
+            <div style={{ position:"absolute", top:"100%", left:0, marginTop:4, background:"#fff", borderRadius:12, boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8", zIndex:400, minWidth:170, overflow:"hidden" }} onClick={e=>e.stopPropagation()}>
               <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Folder Filter</div>
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #f0f4fa", background:allSelected?"#eff6ff":"transparent" }}
                 onClick={() => setFilterFolders(new Set())}>
