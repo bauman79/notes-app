@@ -556,7 +556,8 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
             onClick={()=>setShowFilter(v=>!v)}>
             ⊞ {filterLabel}
           </button>
-          {showFilter && (
+          {showFilter && (<>
+            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowFilter(false)} />
             <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",zIndex:400,minWidth:170,overflow:"hidden"}}>
               <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Folder Filter</div>
               {/* 전체 */}
@@ -580,12 +581,15 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
                 );
               })}
             </div>
-          )}
+          </>)}
         </div>
 
         <div style={{position:"relative"}}>
           <button style={wBtn} onClick={()=>setShowNav(v=>!v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/>}
+          {showNav && <>
+            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowNav(false)} />
+            <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/>
+          </>}
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>Delete ({selected.size})</button>}
@@ -657,7 +661,10 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
           ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"Date"}</div>
           : <div style={{...wDatePill,opacity:.2,pointerEvents:"none",fontSize:11}}>{entry.date}</div>
         }
-        {showDP && <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>}
+        {showDP && <>
+          <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowDP(false)} />
+          <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>
+        </>}
       </div>
 
       {/* Key point */}
@@ -673,7 +680,8 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
           onClick={()=>setShowFP(v=>!v)}>
           {selFolder ? entry.project : "Folder"}
         </div>
-        {showFP && (
+        {showFP && (<>
+          <div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setShowFP(false)} />
           <div style={{position:"absolute",zIndex:500,background:"#fff",borderRadius:12,
             boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",
             top:"100%",left:0,marginTop:4,minWidth:150,overflow:"hidden"}}>
@@ -692,7 +700,7 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
               </div>
             ))}
           </div>
-        )}
+        </>)}
       </div>
 
       {!isMobile && <input style={wCell} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
@@ -848,7 +856,8 @@ function CalendarView({ items, folders }) {
             onClick={() => setShowFilter(v => !v)}>
             ⊞ {filterLabel}
           </button>
-          {showFilter && (
+          {showFilter && (<>
+            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={() => setShowFilter(false)} />
             <div style={{ position:"absolute", top:"100%", left:0, marginTop:4, background:"#fff", borderRadius:12, boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8", zIndex:400, minWidth:170, overflow:"hidden" }}>
               <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Folder Filter</div>
               <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #f0f4fa", background:allSelected?"#eff6ff":"transparent" }}
@@ -877,7 +886,10 @@ function CalendarView({ items, folders }) {
         {/* Month nav */}
         <div style={{ position:"relative" }}>
           <button style={wBtn} onClick={() => setShowNav(v => !v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={() => setShowNav(false)} label="Go to month" />}
+          {showNav && <>
+            <div style={{position:"fixed",inset:0,zIndex:399}} onClick={() => setShowNav(false)} />
+            <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={() => setShowNav(false)} label="Go to month" />
+          </>}
         </div>
 
         {/* Excel download */}
