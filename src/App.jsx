@@ -1835,15 +1835,19 @@ function AppInner() {
     onSuccess: async (tokenResponse) => {
       const token = tokenResponse.access_token;
       setAccessToken(token);
+      let userInfo = { name: "User", email: "", picture: "" };
       try {
         const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const info = await res.json();
-        setUser({ name: info.name, email: info.email, picture: info.picture });
+        userInfo = { name: info.name, email: info.email, picture: info.picture };
       } catch (e) {
-        setUser({ name: "User", email: "" });
+        console.error("Userinfo error:", e);
       }
+      setUser(userInfo);
+      sessionStorage.setItem("gtoken", token);
+      sessionStorage.setItem("guser", JSON.stringify(userInfo));
       try {
         const fileId = await gdriveFind(token);
         if (fileId) {
@@ -1857,8 +1861,6 @@ function AppInner() {
           }
         }
       } catch (e) { console.error("Drive load error:", e); }
-      sessionStorage.setItem("gtoken", token);
-      sessionStorage.setItem("guser", JSON.stringify({ name: info.name, email: info.email, picture: info.picture }));
       setDataLoaded(true);
       setShowLogin(false);
     },
