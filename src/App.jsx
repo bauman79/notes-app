@@ -16,6 +16,7 @@ const firebaseApp  = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
+googleProvider.setCustomParameters({ prompt: "select_account" });
 const DRIVE_FILE_NAME  = "notes-app-data.json";
 
 // ─── Google Drive helpers ─────────────────────────────────
@@ -2474,7 +2475,8 @@ function AppInner() {
     try {
       const result = await signInWithPopup(firebaseAuth, googleProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential.accessToken;
+      const token = credential?.accessToken;
+      if (!token) throw new Error("Drive access token not received. Please try again.");
       const fbUser = result.user;
       const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
       setAccessToken(token);
