@@ -38,7 +38,7 @@ async function gdriveSave(token, data, existingFileId) {
     );
   } else {
     const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json" })], { type: "application/json" }));
+    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json", parents: ["root"] })], { type: "application/json" }));
     form.append("file", new Blob([body], { type: "application/json" }));
     await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
       method: "POST",
@@ -1857,6 +1857,8 @@ function AppInner() {
           }
         }
       } catch (e) { console.error("Drive load error:", e); }
+      sessionStorage.setItem("gtoken", token);
+      sessionStorage.setItem("guser", JSON.stringify({ name: info.name, email: info.email, picture: info.picture }));
       setDataLoaded(true);
       setShowLogin(false);
     },
@@ -1864,12 +1866,40 @@ function AppInner() {
   });
 
   const handleLogout = () => {
+    sessionStorage.removeItem("gtoken");
+    sessionStorage.removeItem("guser");
     setUser(null); setAccessToken(null); setDriveFileId(null);
     setDataLoaded(false); setSyncStatus("");
   };
 
   // ─── Auto-save to Google Drive ───────────────────────────
   const saveTimer = useRef(null);
+
+  // 페이지 로드 시 세션 복원
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem("gtoken");
+    const savedUser  = sessionStorage.getItem("guser");
+    if (savedToken && savedUser) {
+      setAccessToken(savedToken);
+      setUser(JSON.parse(savedUser));
+      gdriveFind(savedToken).then(fileId => {
+        if (fileId) {
+          setDriveFileId(fileId);
+          gdriveRead(savedToken, fileId).then(data => {
+            if (data) {
+              if (data.sidebarItems) setSidebarItems(data.sidebarItems);
+              if (data.items)        setItems(data.items);
+              if (data.worklogs)     setWorklogs(data.worklogs);
+            }
+            setDataLoaded(true);
+            setSyncStatus("saved");
+          });
+        } else {
+          setDataLoaded(true);
+        }
+      });
+    }
+  }, []);
   useEffect(() => {
     if (!accessToken || !dataLoaded) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
