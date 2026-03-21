@@ -44,7 +44,7 @@ async function gdriveRead(token, fileId) {
 async function gdriveSave(token, data, existingFileId) {
   const body = JSON.stringify(data);
   if (existingFileId) {
-    await fetch(
+    const res = await fetch(
       `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
       {
         method: "PATCH",
@@ -52,15 +52,22 @@ async function gdriveSave(token, data, existingFileId) {
         body,
       }
     );
+    if (res.status === 401) throw new Error("TOKEN_EXPIRED");
+    if (!res.ok) throw new Error("Save failed: " + res.status);
+    return existingFileId;
   } else {
     const form = new FormData();
     form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json" })], { type: "application/json" }));
     form.append("file", new Blob([body], { type: "application/json" }));
-    await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
+    if (res.status === 401) throw new Error("TOKEN_EXPIRED");
+    if (!res.ok) throw new Error("Create failed: " + res.status);
+    const created = await res.json();
+    return created.id; // 새로 생성된 파일 ID 반환
   }
 }
 
@@ -2478,6 +2485,8 @@ function AppInner() {
     if (!token) return false;
     const fbUser = result.user;
     const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
+    // Drive 로드 중 자동저장 방지
+    isRestoring.current = true;
     setAccessToken(token);
     setUser(userInfo);
     sessionStorage.setItem("gtoken", token);
@@ -2497,6 +2506,8 @@ function AppInner() {
     } catch (e) { console.error("Drive load error:", e); }
     setDataLoaded(true);
     setShowLogin(false);
+    // 로드 완료 후 1초 뒤 자동저장 재개
+    setTimeout(() => { isRestoring.current = false; }, 1500);
     return true;
   };
 
@@ -2556,6 +2567,15 @@ function AppInner() {
   }, []);
 
   const handleLogout = async () => {
+    // ── 로그아웃 전 즉시 Drive 저장 ──
+    if (accessToken && driveFileId) {
+      try {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        setSyncStatus("saving");
+        await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
+        setSyncStatus("saved");
+      } catch (e) { console.warn("Pre-logout save failed:", e); }
+    }
     try { await signOut(firebaseAuth); } catch {}
     sessionStorage.removeItem("gtoken");
     sessionStorage.removeItem("guser");
@@ -2632,11 +2652,8 @@ function AppInner() {
     saveTimer.current = setTimeout(async () => {
       setSyncStatus("saving");
       try {
-        await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
-        if (!driveFileId) {
-          const fid = await gdriveFind(accessToken);
-          if (fid) setDriveFileId(fid);
-        }
+        const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
+        if (savedId && !driveFileId) setDriveFileId(savedId);
         setSyncStatus("saved");
       } catch (e) {
         if (e.message === "TOKEN_EXPIRED" || String(e).includes("401")) {
