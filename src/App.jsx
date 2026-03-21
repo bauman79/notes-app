@@ -195,7 +195,21 @@ const mkDate = () => {
 const mkTs = () => Date.now();
 const daysAgo = ts => Math.floor((Date.now() - ts) / 86400000);
 
-let nextId = 400;
+// nextId: start above the max existing ID to prevent collisions after reload
+function getNextId() {
+  try {
+    const all = [
+      ...JSON.parse(localStorage.getItem("notes_sidebar") || "[]"),
+      ...JSON.parse(localStorage.getItem("notes_items") || "[]"),
+      ...JSON.parse(localStorage.getItem("notes_worklogs") || "[]"),
+    ];
+    const nums = all
+      .map(i => parseInt((i.id || "").replace(/[^0-9]/g, ""), 10))
+      .filter(n => !isNaN(n));
+    return nums.length > 0 ? Math.max(...nums) + 1 : 400;
+  } catch { return 400; }
+}
+let nextId = getNextId();
 
 const initSidebar = [
   { id:"f1", type:"folder", name:"PROJECT" },
