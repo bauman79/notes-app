@@ -1969,10 +1969,31 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 }
 
 
-function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
+function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onMove, folders }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
   const fileInputRef = useRef(null);
+  const [tbMenu,      setTbMenu]      = useState(null);
+  const [tbMenuPos,   setTbMenuPos]   = useState({ top:0, right:0 });
+  const [tbConfirmDel,setTbConfirmDel]= useState(false);
+  const tbDotRef = useRef(null);
+
+  const openTbMenu = (e) => {
+    e.stopPropagation();
+    if (tbDotRef.current) {
+      const r = tbDotRef.current.getBoundingClientRect();
+      setTbMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setTbMenu(v => v ? null : "main");
+    setTbConfirmDel(false);
+  };
+
+  useEffect(() => {
+    if (!tbMenu) return;
+    const close = () => { setTbMenu(null); setTbConfirmDel(false); };
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [tbMenu]);
 
   const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
   const updHS  = (id,p) => onUpdate({ hiddenSections:(item.hiddenSections||[]).map(h=>h.id===id?{...h,...p}:h) });
@@ -2026,9 +2047,86 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
           <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
             value={item.title} placeholder="Title..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
-          <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
-            onClick={()=>onUpdate({starred:!item.starred})}>★</span>
-          <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
+          {/* ⋯ 버튼 */}
+          <span ref={tbDotRef}
+            style={{ color:"#c2d0e8", fontSize:18, cursor:"pointer", userSelect:"none",
+              flexShrink:0, padding:"4px 6px", lineHeight:1, borderRadius:6,
+              minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={openTbMenu}>⋯</span>
+          {/* 통합 메뉴 */}
+          {tbMenu === "main" && (
+            <div style={{ position:"fixed", top:tbMenuPos.top, right:tbMenuPos.right,
+              background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+              border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:150, overflow:"hidden" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+                fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+                onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+                onMouseLeave={e=>e.currentTarget.style.background=""}
+                onClick={() => { onUpdate({ starred:!item.starred }); setTbMenu(null); }}>
+                <span style={{ fontSize:15, color:item.starred?"#f59e0b":"#c2d0e8" }}>★</span>
+                {item.starred ? "Unstar" : "Star"}
+              </div>
+              {onMove && folders && (
+                <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+                  fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500,
+                  borderTop:"1px solid #f0f4fa" }}
+                  onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+                  onMouseLeave={e=>e.currentTarget.style.background=""}
+                  onClick={(e) => { e.stopPropagation(); setTbMenu("move"); }}>
+                  <span style={{ fontSize:15, color:"#60a5fa" }}>⇄</span>
+                  Move to...
+                </div>
+              )}
+              <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+                fontSize:13.5, cursor:"pointer", fontWeight:500,
+                borderTop:"1px solid #f0f4fa",
+                color: tbConfirmDel ? "#fff" : "#e53e3e",
+                background: tbConfirmDel ? "#e53e3e" : "" }}
+                onMouseEnter={e=>{ if(!tbConfirmDel) e.currentTarget.style.background="#fff5f5"; }}
+                onMouseLeave={e=>{ if(!tbConfirmDel) e.currentTarget.style.background=""; }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (tbConfirmDel) { onDelete(); setTbMenu(null); }
+                  else setTbConfirmDel(true);
+                }}>
+                <span style={{ fontSize:15 }}>{tbConfirmDel ? "⚠" : "🗑"}</span>
+                {tbConfirmDel ? "Tap again to confirm" : "Delete"}
+              </div>
+            </div>
+          )}
+          {tbMenu === "move" && (
+            <div style={{ position:"fixed", top:tbMenuPos.top, right:tbMenuPos.right,
+              background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+              border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:180, overflow:"hidden",
+              display:"flex", flexDirection:"column" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ padding:"8px 14px 6px", fontSize:10, fontWeight:700, color:"#94a3b8",
+                letterSpacing:"1px", textTransform:"uppercase",
+                borderBottom:"1px solid #f0f4fa", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ cursor:"pointer", color:"#60a5fa", fontSize:16, fontWeight:700 }}
+                  onClick={(e) => { e.stopPropagation(); setTbMenu("main"); }}>‹</span>
+                Move to folder
+              </div>
+              <div style={{ maxHeight:240, overflowY:"auto" }}>
+                {folders.map(f => (
+                  <div key={f.id}
+                    style={{ padding:"11px 16px", fontSize:13.5, cursor:"pointer", fontWeight:500,
+                      color: item.folder===f.id?"#2563eb":"#1e3a6e",
+                      background: item.folder===f.id?"#eff6ff":"transparent",
+                      display:"flex", alignItems:"center", gap:8 }}
+                    onMouseEnter={e=>{ if(item.folder!==f.id) e.currentTarget.style.background="#f5f8ff"; }}
+                    onMouseLeave={e=>{ if(item.folder!==f.id) e.currentTarget.style.background=""; }}
+                    onMouseDown={() => { onMove(f.id); setTbMenu(null); }}>
+                    {item.folder===f.id
+                      ? <span style={{ color:"#2563eb", fontSize:12 }}>✓</span>
+                      : <span style={{ width:12, display:"inline-block" }}/>}
+                    {f.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
           <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
@@ -2109,6 +2207,114 @@ const footBtn = {background:"none",border:"1px dashed #b8cce8",borderRadius:6,co
 
 
 // ─── SortableList ────────────────────────────────────────
+// ─── SortableList 헤더용 ⋯ 메뉴 ─────────────────────────
+function SLHeaderMenu({ header, onUpd, onDel, onMove, folders }) {
+  const [menu, setMenu]         = useState(null);
+  const [menuPos, setMenuPos]   = useState({ top:0, right:0 });
+  const [confirmDel, setConfirmDel] = useState(false);
+  const btnRef = useRef(null);
+
+  const openMenu = (e) => {
+    e.stopPropagation();
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setMenu(v => v ? null : "main");
+    setConfirmDel(false);
+  };
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => { setMenu(null); setConfirmDel(false); };
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menu]);
+
+  return (
+    <>
+      <span ref={btnRef}
+        style={{ color:"#c2d0e8", fontSize:18, cursor:"pointer", userSelect:"none",
+          flexShrink:0, padding:"4px 6px", lineHeight:1, borderRadius:6,
+          minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
+        onClick={openMenu}>⋯</span>
+      {menu === "main" && (
+        <div style={{ position:"fixed", top:menuPos.top, right:menuPos.right,
+          background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+          border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:150, overflow:"hidden" }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+            fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+            onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+            onMouseLeave={e=>e.currentTarget.style.background=""}
+            onClick={() => { onUpd(header.id,{starred:!header.starred}); setMenu(null); }}>
+            <span style={{ fontSize:15, color:header.starred?"#f59e0b":"#c2d0e8" }}>★</span>
+            {header.starred ? "Unstar" : "Star"}
+          </div>
+          {onMove && folders && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+              fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500,
+              borderTop:"1px solid #f0f4fa" }}
+              onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+              onMouseLeave={e=>e.currentTarget.style.background=""}
+              onClick={(e) => { e.stopPropagation(); setMenu("move"); }}>
+              <span style={{ fontSize:15, color:"#60a5fa" }}>⇄</span>
+              Move to...
+            </div>
+          )}
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+            fontSize:13.5, cursor:"pointer", fontWeight:500,
+            borderTop:"1px solid #f0f4fa",
+            color: confirmDel ? "#fff" : "#e53e3e",
+            background: confirmDel ? "#e53e3e" : "" }}
+            onMouseEnter={e=>{ if(!confirmDel) e.currentTarget.style.background="#fff5f5"; }}
+            onMouseLeave={e=>{ if(!confirmDel) e.currentTarget.style.background=""; }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirmDel) { onDel(header.id); setMenu(null); }
+              else setConfirmDel(true);
+            }}>
+            <span style={{ fontSize:15 }}>{confirmDel ? "⚠" : "🗑"}</span>
+            {confirmDel ? "Tap again to confirm" : "Delete"}
+          </div>
+        </div>
+      )}
+      {menu === "move" && (
+        <div style={{ position:"fixed", top:menuPos.top, right:menuPos.right,
+          background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+          border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:180, overflow:"hidden",
+          display:"flex", flexDirection:"column" }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ padding:"8px 14px 6px", fontSize:10, fontWeight:700, color:"#94a3b8",
+            letterSpacing:"1px", textTransform:"uppercase",
+            borderBottom:"1px solid #f0f4fa", display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ cursor:"pointer", color:"#60a5fa", fontSize:16, fontWeight:700 }}
+              onClick={(e) => { e.stopPropagation(); setMenu("main"); }}>‹</span>
+            Move to folder
+          </div>
+          <div style={{ maxHeight:240, overflowY:"auto" }}>
+            {folders.map(f => (
+              <div key={f.id}
+                style={{ padding:"11px 16px", fontSize:13.5, cursor:"pointer", fontWeight:500,
+                  color: header.folder===f.id?"#2563eb":"#1e3a6e",
+                  background: header.folder===f.id?"#eff6ff":"transparent",
+                  display:"flex", alignItems:"center", gap:8 }}
+                onMouseEnter={e=>{ if(header.folder!==f.id) e.currentTarget.style.background="#f5f8ff"; }}
+                onMouseLeave={e=>{ if(header.folder!==f.id) e.currentTarget.style.background=""; }}
+                onMouseDown={() => { onMove(f.id); setMenu(null); }}>
+                {header.folder===f.id
+                  ? <span style={{ color:"#2563eb", fontSize:12 }}>✓</span>
+                  : <span style={{ width:12, display:"inline-block" }}/>}
+                {f.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMode, selected, togSel, isMobile, upd, softDel, folders, focusNewItem, onFocusItemDone }) {
   useEffect(() => {
     if (!focusNewItem) return;
@@ -2168,11 +2374,8 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
                   value={sec.header.title} placeholder="Header title..."
                   onChange={e => upd(sec.header.id,{title:e.target.value})} onClick={e=>e.stopPropagation()} />
                 {sec.children.length>0 && <span style={{ fontSize:10,color:"rgba(37,99,235,.5)",background:"rgba(37,99,235,.1)",borderRadius:10,padding:"1px 7px",flexShrink:0 }}>{sec.children.length}</span>}
-                <span style={{ fontSize:14,cursor:"pointer",flexShrink:0,color:sec.header.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
-                  onClick={()=>upd(sec.header.id,{starred:!sec.header.starred})}>★</span>
                 {handle(sec.hIdx)}
-                <span style={{ color:"#94a3b8",fontSize:20,cursor:"pointer",lineHeight:1,padding:"0 4px",flexShrink:0 }}
-                  onClick={()=>softDel(sec.header.id)}>×</span>
+                <SLHeaderMenu header={sec.header} onUpd={upd} onDel={softDel} onMove={f=>upd(sec.header.id,{folder:f})} folders={folders} />
               </div>
             </div>
           )}
@@ -2266,50 +2469,162 @@ function CompletedSection({ doneTodos, upd, isMobile }) {
   );
 }
 
+
+
 function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddBelow }) {
   const bp = {};
   const drag = {};
   const fs = isMobile ? 15 : 14;
-  const [showMove, setShowMove] = useState(false);
+
+  // ─── 통합 ⋯ 메뉴 state ───────────────────────────────────
+  const [menu, setMenu] = useState(null); // null | "main" | "move"
   const [menuPos, setMenuPos] = useState({ top:0, right:0 });
+  const [confirmDel, setConfirmDel] = useState(false);
   const dotBtnRef = useRef(null);
 
-  const openMenu = (e) => {
+  const openMain = (e) => {
     e.stopPropagation();
     if (dotBtnRef.current) {
       const r = dotBtnRef.current.getBoundingClientRect();
-      setMenuPos({ top: r.top - 4, right: window.innerWidth - r.right });
+      setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
     }
-    setShowMove(v => !v);
+    setMenu(v => v ? null : "main");
+    setConfirmDel(false);
   };
 
   useEffect(() => {
-    if (!showMove) return;
-    const close = () => setShowMove(false);
+    if (!menu) return;
+    const close = () => { setMenu(null); setConfirmDel(false); };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
-  }, [showMove]);
+  }, [menu]);
+
+  // ─── 통합 ⋯ 팝업 ─────────────────────────────────────────
+  const DotMenu = () => (
+    <>
+      {/* 메인 메뉴 */}
+      {menu === "main" && (
+        <div style={{ position:"fixed", top:menuPos.top, right:menuPos.right,
+          background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+          border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:150, overflow:"hidden" }}
+          onClick={e => e.stopPropagation()}>
+          {/* 별표 */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+            fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+            onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+            onMouseLeave={e=>e.currentTarget.style.background=""}
+            onClick={() => { onUpdate({ starred:!item.starred }); setMenu(null); }}>
+            <span style={{ fontSize:15, color:item.starred?"#f59e0b":"#c2d0e8" }}>★</span>
+            {item.starred ? "Unstar" : "Star"}
+          </div>
+          {/* 이동 */}
+          {onMove && folders && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+              fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500,
+              borderTop:"1px solid #f0f4fa" }}
+              onMouseEnter={e=>e.currentTarget.style.background="#f5f8ff"}
+              onMouseLeave={e=>e.currentTarget.style.background=""}
+              onClick={(e) => { e.stopPropagation(); setMenu("move"); }}>
+              <span style={{ fontSize:15, color:"#60a5fa" }}>⇄</span>
+              Move to...
+            </div>
+          )}
+          {/* 삭제 */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
+            fontSize:13.5, cursor:"pointer", fontWeight:500,
+            borderTop:"1px solid #f0f4fa",
+            color: confirmDel ? "#fff" : "#e53e3e",
+            background: confirmDel ? "#e53e3e" : "" }}
+            onMouseEnter={e=>{ if(!confirmDel) e.currentTarget.style.background="#fff5f5"; }}
+            onMouseLeave={e=>{ if(!confirmDel) e.currentTarget.style.background=""; }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirmDel) { onDelete(); setMenu(null); }
+              else setConfirmDel(true);
+            }}>
+            <span style={{ fontSize:15 }}>{confirmDel ? "⚠" : "🗑"}</span>
+            {confirmDel ? "Tap again to confirm" : "Delete"}
+          </div>
+        </div>
+      )}
+      {/* 폴더 이동 서브메뉴 */}
+      {menu === "move" && (
+        <div style={{ position:"fixed", top:menuPos.top, right:menuPos.right,
+          background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)",
+          border:"1px solid rgba(37,99,235,.1)", zIndex:9999, minWidth:180, overflow:"hidden",
+          display:"flex", flexDirection:"column" }}
+          onClick={e => e.stopPropagation()}>
+          <div style={{ padding:"8px 14px 6px", fontSize:10, fontWeight:700, color:"#94a3b8",
+            letterSpacing:"1px", textTransform:"uppercase",
+            borderBottom:"1px solid #f0f4fa", display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ cursor:"pointer", color:"#60a5fa", fontSize:16, fontWeight:700 }}
+              onClick={(e) => { e.stopPropagation(); setMenu("main"); }}>‹</span>
+            Move to folder
+          </div>
+          <div style={{ maxHeight:240, overflowY:"auto" }}>
+            {folders.map(f => (
+              <div key={f.id}
+                style={{ padding:"11px 16px", fontSize:13.5, cursor:"pointer", fontWeight:500,
+                  color: item.folder===f.id?"#2563eb":"#1e3a6e",
+                  background: item.folder===f.id?"#eff6ff":"transparent",
+                  display:"flex", alignItems:"center", gap:8 }}
+                onMouseEnter={e=>{ if(item.folder!==f.id) e.currentTarget.style.background="#f5f8ff"; }}
+                onMouseLeave={e=>{ if(item.folder!==f.id) e.currentTarget.style.background=""; }}
+                onMouseDown={() => { onMove(f.id); setMenu(null); }}>
+                {item.folder===f.id
+                  ? <span style={{ color:"#2563eb", fontSize:12 }}>✓</span>
+                  : <span style={{ width:12, display:"inline-block" }}/>}
+                {f.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  // ─── ⋯ 버튼 공통 스타일 ──────────────────────────────────
+  const DotBtn = () => (
+    <span ref={dotBtnRef}
+      style={{ color:"#c2d0e8", fontSize:18, cursor:"pointer", userSelect:"none",
+        flexShrink:0, padding:"4px 6px", lineHeight:1, borderRadius:6,
+        minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
+      onClick={openMain}>⋯</span>
+  );
 
   if (item.type === T.HEADER) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
-      <input style={{ fontWeight:700, color:"#1a3a78", flex:1, border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
-        value={item.title} placeholder="Header title..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
-        onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-      <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
+    <div style={{ display:"flex", alignItems:"center", gap:8,
+      background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))",
+      border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb",
+      borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px",
+      cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+      <input style={{ fontWeight:700, color:"#1a3a78", flex:1, minWidth:0, border:"none",
+        background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
+        value={item.title} placeholder="Header title..."
+        onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
+      <DotBtn />
+      <DotMenu />
     </div>
   );
 
   if (item.type === T.TODO) return (
-    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", position:"relative", ...drag }} {...bp}>
-      <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
-        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
+    <div style={{ background:"#fff", borderRadius:12, marginBottom:5,
+      boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab",
+      userSelect:"none", width:"100%", boxSizing:"border-box", ...drag }} {...bp}>
+      <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex",
+        alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
+        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex",
+          alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0,
+          width:isMobile?20:18, height:isMobile?20:18,
+          ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
         <input
           data-todoitem={item.id}
-          style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+          style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none",
+            fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0,
+            ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
           value={item.title}
           placeholder="Add a task..."
           onChange={e => onUpdate({ title:e.target.value })}
@@ -2317,39 +2632,15 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
           onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
         />
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
-        <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
-          onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-        {/* Move to folder */}
-        {onMove && folders && (
-          <div style={{ position:"relative", flexShrink:0 }}>
-            <span ref={dotBtnRef} style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"4px 6px", userSelect:"none", minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
-              onClick={openMenu} title="Move to folder">⋯</span>
-            {showMove && (
-              <div style={{ position:"fixed", top: menuPos.top, right: menuPos.right, transform:"translateY(-100%)", background:"#fff", borderRadius:10,
-                boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8",
-                zIndex:9999, minWidth:160, overflow:"hidden" }}
-                onClick={e => e.stopPropagation()}>
-                <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
-                {folders.map(f => (
-                  <div key={f.id}
-                    style={{ padding:"9px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
-                      color: item.folder===f.id?"#2563eb":"#1e3a6e",
-                      background: item.folder===f.id?"#eff6ff":"transparent" }}
-                    onMouseDown={() => { onMove(f.id); setShowMove(false); }}>
-                    {item.folder===f.id && <span style={{ marginRight:6, fontSize:11 }}>✓</span>}{f.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
+        <DotBtn />
+        <DotMenu />
       </div>
     </div>
   );
 
   if (item.type === T.TEXT) return (
-    <TextBlock item={item} isMobile={isMobile} drag={drag} bp={bp} fs={fs} onUpdate={onUpdate} onDelete={onDelete} />
+    <TextBlock item={item} isMobile={isMobile} drag={drag} bp={bp} fs={fs}
+      onUpdate={onUpdate} onDelete={onDelete} onMove={onMove} folders={folders} />
   );
 
   return null;
