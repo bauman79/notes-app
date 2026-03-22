@@ -2156,15 +2156,15 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
                 <div style={{ width:18,height:18,borderRadius:5,border:"1.5px solid #c2d0e8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700,cursor:"pointer",flexShrink:0,marginTop:2,...(selected.has(sec.header.id)?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
                   onClick={() => togSel(sec.header.id)}>{selected.has(sec.header.id)&&"✓"}</div>
               )}
-              <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, minWidth:0,
+              <div style={{ flex:1, display:"flex", alignItems:"center", gap:6, minWidth:0,
                 background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))",
                 border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb",
-                borderRadius:9, padding:"10px 14px", overflow:"hidden" }}>
+                borderRadius:9, padding:"10px 10px 10px 14px" }}>
                 <button style={{ background:"none",border:"none",cursor:"pointer",padding:"4px 8px",color:"#2563eb",fontSize:20,display:"flex",alignItems:"center",flexShrink:0,minWidth:32,minHeight:32,justifyContent:"center",borderRadius:6 }}
                   onClick={() => toggleHdr(sec.header.id)}>
                   <span style={{ display:"inline-block",transition:"transform .2s",transform:collapsedHdrs.has(sec.header.id)?"rotate(-90deg)":"rotate(0deg)" }}>▾</span>
                 </button>
-                <input style={{ fontWeight:700,color:"#1a3a78",flex:1,border:"none",background:"transparent",outline:"none",fontFamily:"inherit",fontSize:isMobile?15:14 }}
+                <input style={{ fontWeight:700,color:"#1a3a78",flex:1,minWidth:0,border:"none",background:"transparent",outline:"none",fontFamily:"inherit",fontSize:isMobile?15:14 }}
                   value={sec.header.title} placeholder="Header title..."
                   onChange={e => upd(sec.header.id,{title:e.target.value})} onClick={e=>e.stopPropagation()} />
                 {sec.children.length>0 && <span style={{ fontSize:10,color:"rgba(37,99,235,.5)",background:"rgba(37,99,235,.1)",borderRadius:10,padding:"1px 7px",flexShrink:0 }}>{sec.children.length}</span>}
@@ -2271,6 +2271,24 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const drag = {};
   const fs = isMobile ? 15 : 14;
   const [showMove, setShowMove] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top:0, right:0 });
+  const dotBtnRef = useRef(null);
+
+  const openMenu = (e) => {
+    e.stopPropagation();
+    if (dotBtnRef.current) {
+      const r = dotBtnRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.top - 4, right: window.innerWidth - r.right });
+    }
+    setShowMove(v => !v);
+  };
+
+  useEffect(() => {
+    if (!showMove) return;
+    const close = () => setShowMove(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [showMove]);
 
   if (item.type === T.HEADER) return (
     <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
@@ -2304,12 +2322,13 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         {/* Move to folder */}
         {onMove && folders && (
           <div style={{ position:"relative", flexShrink:0 }}>
-            <span style={{ color:"#c2d0e8", fontSize:14, cursor:"pointer", padding:"0 2px", userSelect:"none" }}
-              onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="Move to folder">⋯</span>
+            <span ref={dotBtnRef} style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"4px 6px", userSelect:"none", minWidth:28, minHeight:28, display:"flex", alignItems:"center", justifyContent:"center" }}
+              onClick={openMenu} title="Move to folder">⋯</span>
             {showMove && (
-              <div style={{ position:"absolute", right:0, bottom:"100%", background:"#fff", borderRadius:10,
+              <div style={{ position:"fixed", top: menuPos.top, right: menuPos.right, transform:"translateY(-100%)", background:"#fff", borderRadius:10,
                 boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8",
-                zIndex:500, minWidth:150, overflow:"hidden", marginBottom:4 }}>
+                zIndex:9999, minWidth:160, overflow:"hidden" }}
+                onClick={e => e.stopPropagation()}>
                 <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
                 {folders.map(f => (
                   <div key={f.id}
