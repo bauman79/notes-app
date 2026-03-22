@@ -2171,7 +2171,7 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
                 <span style={{ fontSize:14,cursor:"pointer",flexShrink:0,color:sec.header.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
                   onClick={()=>upd(sec.header.id,{starred:!sec.header.starred})}>★</span>
                 {handle(sec.hIdx)}
-                <span style={{ color:"#d0ddef",fontSize:19,cursor:"pointer",lineHeight:1,padding:"0 2px",flexShrink:0 }}
+                <span style={{ color:"#94a3b8",fontSize:20,cursor:"pointer",lineHeight:1,padding:"0 4px",flexShrink:0 }}
                   onClick={()=>softDel(sec.header.id)}>×</span>
               </div>
             </div>
@@ -2278,12 +2278,12 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         value={item.title} placeholder="Header title..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
       <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
         onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-      <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
+      <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
     </div>
   );
 
   if (item.type === T.TODO) return (
-    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", overflow:"hidden", ...drag }} {...bp}>
+    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", position:"relative", ...drag }} {...bp}>
       <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
         <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
@@ -2307,9 +2307,9 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
             <span style={{ color:"#c2d0e8", fontSize:14, cursor:"pointer", padding:"0 2px", userSelect:"none" }}
               onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="Move to folder">⋯</span>
             {showMove && (
-              <div style={{ position:"absolute", right:0, top:"100%", background:"#fff", borderRadius:10,
+              <div style={{ position:"absolute", right:0, bottom:"100%", background:"#fff", borderRadius:10,
                 boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8",
-                zIndex:500, minWidth:150, overflow:"hidden", marginTop:4 }}>
+                zIndex:500, minWidth:150, overflow:"hidden", marginBottom:4 }}>
                 <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
                 {folders.map(f => (
                   <div key={f.id}
@@ -2324,7 +2324,7 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
             )}
           </div>
         )}
-        <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
+        <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
       </div>
     </div>
   );
