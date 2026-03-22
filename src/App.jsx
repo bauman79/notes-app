@@ -1863,7 +1863,7 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
   const isImage = att.type === "image";
 
   const handleDownload = () => {
-    const token = sessionStorage.getItem("gtoken");
+    const token = localStorage.getItem("gtoken");
     if (!token || !att.driveFileId) return;
     const url = `https://www.googleapis.com/drive/v3/files/${att.driveFileId}?alt=media`;
     fetch(url, { headers:{ Authorization:`Bearer ${token}` } })
@@ -1993,7 +1993,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
     fileInputRef.current.value = "";
     if (!file) return;
     if (file.size > MAX_SIZE) { alert(`File too large. Max 10MB (selected: ${(file.size/1024/1024).toFixed(1)}MB)`); return; }
-    const token = sessionStorage.getItem("gtoken");
+    const token = localStorage.getItem("gtoken");
     if (!token) { alert("Please sign in with Google to upload files."); return; }
     setUploading(true);
     try {
@@ -2358,9 +2358,9 @@ function NoticeView({ items, folders, isMobile, onUpdate, onDelete }) {
 // ─── App ──────────────────────────────────────────────────
 function AppInner() {
   const isMobile = useIsMobile();
-  // Load from localStorage ONLY if logged in (sessionStorage token exists)
+  // Load from localStorage ONLY if logged in (token exists in localStorage)
   // If not logged in → show clean initData, not someone's private data
-  const isLoggedInOnLoad = !!sessionStorage.getItem("gtoken");
+  const isLoggedInOnLoad = !!localStorage.getItem("gtoken");
   const [sidebarItems, setSidebarItems] = useState(() => {
     if (!isLoggedInOnLoad) return initSidebar;
     try {
@@ -2491,8 +2491,8 @@ function AppInner() {
     isRestoring.current = true;
     setAccessToken(token);
     setUser(userInfo);
-    sessionStorage.setItem("gtoken", token);
-    sessionStorage.setItem("guser", JSON.stringify(userInfo));
+    localStorage.setItem("gtoken", token);
+    localStorage.setItem("guser", JSON.stringify(userInfo));
     try {
       const fileId = await gdriveFind(token);
       if (fileId) {
@@ -2555,12 +2555,12 @@ function AppInner() {
       try {
         const credential = await fbUser.getIdToken(true);
         // Re-fetch OAuth token via silent re-auth if stored token expired
-        const storedToken = sessionStorage.getItem("gtoken");
+        const storedToken = localStorage.getItem("gtoken");
         if (!storedToken) return;
         // Token still valid — just update user info
         const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
         setUser(userInfo);
-        sessionStorage.setItem("guser", JSON.stringify(userInfo));
+        localStorage.setItem("guser", JSON.stringify(userInfo));
       } catch (e) {
         console.warn("Auth state error:", e);
       }
@@ -2579,8 +2579,8 @@ function AppInner() {
       } catch (e) { console.warn("Pre-logout save failed:", e); }
     }
     try { await signOut(firebaseAuth); } catch {}
-    sessionStorage.removeItem("gtoken");
-    sessionStorage.removeItem("guser");
+    localStorage.removeItem("gtoken");
+    localStorage.removeItem("guser");
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
     localStorage.removeItem("notes_worklogs");
@@ -2609,8 +2609,8 @@ function AppInner() {
 
   // ── Session restore on page reload ───────────────────────
   useEffect(() => {
-    const savedToken = sessionStorage.getItem("gtoken");
-    const savedUser  = sessionStorage.getItem("guser");
+    const savedToken = localStorage.getItem("gtoken");
+    const savedUser  = localStorage.getItem("guser");
     if (!savedToken || !savedUser) return;
     isRestoring.current = true; // block auto-save during restore
     setAccessToken(savedToken);
@@ -2631,8 +2631,8 @@ function AppInner() {
       } catch(e) {
         if (e.message === "TOKEN_EXPIRED") {
           // Token expired — clear session, show login
-          sessionStorage.removeItem("gtoken");
-          sessionStorage.removeItem("guser");
+          localStorage.removeItem("gtoken");
+          localStorage.removeItem("guser");
           setUser(null);
           setAccessToken(null);
           setSyncStatus("error");
