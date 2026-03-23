@@ -338,13 +338,10 @@ function RichText({ html, onChange, placeholder, style }) {
   const { tb, checkSel, exec: execBase, tbRef, hide } = useFloatingToolbar(containerRef);
 
   useEffect(() => {
-    if (!ref.current) return;
-    // 포커스 중(타이핑 중)이면 건드리지 않음 — 입력 방해 방지
-    if (ref.current.contains(document.activeElement)) return;
-    if (ref.current.innerHTML !== (html || "")) {
+    if (ref.current && ref.current.innerHTML !== (html || "")) {
       ref.current.innerHTML = html || "";
     }
-  }, [html]); // html prop 변경 시(Drive 동기화 등) 항상 반영
+  }, []); // eslint-disable-line
 
   const exec = (cmd, val) => {
     // Do NOT call focus() here — e.preventDefault() on toolbar mousedown keeps selection alive
@@ -1512,13 +1509,10 @@ function RichTableCell({ content, onChange, disabled }) {
   const [tb, setTb] = useState(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    // 포커스 중이면 건드리지 않음
-    if (ref.current.contains(document.activeElement)) return;
-    if (ref.current.innerHTML !== content) {
+    if (ref.current && ref.current.innerHTML !== content) {
       ref.current.innerHTML = content;
     }
-  }, [content]); // content prop 변경 시 반영
+  }, []); // eslint-disable-line
 
   const checkSel = useCallback(() => {
     setTimeout(() => {
@@ -2029,7 +2023,10 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
     <>
       <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", flexDirection:"column", alignItems:"stretch", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
         <div style={{ display:"flex", alignItems:"center", gap:8, padding:pad, paddingBottom:6 }}>
-          <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
+          <div style={{ width:3, height:16, borderRadius:2, background:item.starred?"#f59e0b":"#2563eb", flexShrink:0 }} />
+          {item.starred && (
+            <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-4, pointerEvents:"none" }}>★</span>
+          )}
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
             value={item.title} placeholder="Title..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
@@ -2279,10 +2276,11 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const [showMove, setShowMove] = useState(false);
 
   if (item.type === T.HEADER) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+      {item.starred && <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1 }}>★</span>}
       <input style={{ fontWeight:700, color:"#1a3a78", flex:1, border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
         value={item.title} placeholder="Header title..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
+      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"rgba(59,130,246,.3)" }}
         onClick={() => onUpdate({ starred:!item.starred })}>★</span>
       <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
     </div>
@@ -2295,6 +2293,9 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
+        {item.starred && (
+          <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none" }}>★</span>
+        )}
         <input
           data-todoitem={item.id}
           style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
@@ -2923,8 +2924,11 @@ function AppInner() {
               <SortableList
                 items={sortableFlat}
                 setItems={newArr => setItems(prev => {
+                  // onAddBelow는 함수형 업데이터를 넘기므로 함수/배열 둘 다 처리
+                  const visibleItems = prev.filter(i => !i.deletedAt && i.folder === activeFolder);
+                  const resolved = typeof newArr === 'function' ? newArr(visibleItems) : newArr;
                   const others = prev.filter(i => i.deletedAt || i.folder !== activeFolder);
-                  return [...others, ...newArr];
+                  return [...others, ...resolved];
                 })}
                 getKey={i => i.id}
                 collapsedHdrs={collapsedHdrs}
