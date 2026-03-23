@@ -564,10 +564,18 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
   // colGrid: cb | date | keyPoint | project | details | notes | actions
   const colGrid = isMobile
     ? "20px 80px 1fr 100px 28px"
-    : "20px 90px 1fr 120px 1fr 80px 28px";
+    : "20px 90px 1fr 110px 0.9fr 1.6fr 28px";
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}} onClick={()=>{ setShowFilter(false); setShowNav(false); }}>
+
+      {/* ── Worklog 설명 배너 ── */}
+      <div style={{background:"linear-gradient(90deg,#eff6ff,#f5f3ff)",border:"1px solid #dbeafe",borderRadius:10,padding:"8px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:16,flexShrink:0}}>📋</span>
+        <span style={{fontSize:12,color:"#3b4e8c",lineHeight:1.6}}>
+          <b>Worklog</b>는 업무일지 전용 공간입니다. 폴더 노트와 별도로 날짜·프로젝트·핵심 내용을 기록하고, Excel로 내보내거나 불러올 수 있습니다.
+        </span>
+      </div>
 
       {/* ── Top controls ── */}
       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingBottom:10,borderBottom:"1px solid #eef3ff",marginBottom:8}}>
@@ -615,6 +623,38 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           {showNav && <div onClick={e=>e.stopPropagation()}><MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/></div>}
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
+        {/* Excel 업로드(Import) */}
+        <label style={{...wBtn,cursor:"pointer",color:"#059669",borderColor:"#6ee7b7",background:"#f0fdf4"}} title="Excel 파일로 Worklog 가져오기">
+          ↑ Import
+          <input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{
+            const file = e.target.files?.[0];
+            if (!file) return;
+            e.target.value = "";
+            const reader = new FileReader();
+            reader.onload = ev => {
+              try {
+                const wb = XLSX.read(ev.target.result, {type:"array"});
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
+                const newEntries = rows.map(r => ({
+                  id: `wl${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                  date:     String(r["Date"]     || r["date"]     || "").trim(),
+                  project:  String(r["Project"]  || r["project"]  || r["Folder"] || r["folder"] || "").trim(),
+                  keyPoint: String(r["Key Point"] || r["keyPoint"] || r["key_point"] || "").trim(),
+                  details:  String(r["Details"]  || r["details"]  || "").trim(),
+                  notes:    String(r["Notes"]    || r["notes"]    || "").trim(),
+                  createdAt: Date.now(),
+                })).filter(r => r.date || r.keyPoint || r.details);
+                if (!newEntries.length) { alert("가져올 데이터가 없습니다.\n열 이름: Date, Project, Key Point, Details, Notes"); return; }
+                setWorklogs(prev => [...prev, ...newEntries]);
+                alert(`${newEntries.length}개 항목을 가져왔습니다.`);
+              } catch(err) {
+                alert("파일을 읽을 수 없습니다: " + err.message);
+              }
+            };
+            reader.readAsArrayBuffer(file);
+          }}/>
+        </label>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>Delete ({selected.size})</button>}
         <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ Add</button>
       </div>
@@ -726,8 +766,8 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
         </>)}
       </div>
 
-      {!isMobile && <input style={wCell} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
-      {!isMobile && <input style={{...wCell,fontSize:12}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
+      {!isMobile && <input style={{...wCell,fontSize:13}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
+      {!isMobile && <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:36,maxHeight:90,lineHeight:1.5,padding:"4px"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
         <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
         <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
@@ -2023,10 +2063,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
     <>
       <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", flexDirection:"column", alignItems:"stretch", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
         <div style={{ display:"flex", alignItems:"center", gap:8, padding:pad, paddingBottom:6 }}>
-          <div style={{ width:3, height:16, borderRadius:2, background:item.starred?"#f59e0b":"#2563eb", flexShrink:0 }} />
-          {item.starred && (
-            <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-4, pointerEvents:"none" }}>★</span>
-          )}
+          <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
             value={item.title} placeholder="Title..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
@@ -2276,11 +2313,10 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const [showMove, setShowMove] = useState(false);
 
   if (item.type === T.HEADER) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
-      {item.starred && <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1 }}>★</span>}
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
       <input style={{ fontWeight:700, color:"#1a3a78", flex:1, border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
         value={item.title} placeholder="Header title..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"rgba(59,130,246,.3)" }}
+      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
         onClick={() => onUpdate({ starred:!item.starred })}>★</span>
       <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
     </div>
@@ -2293,9 +2329,6 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
-        {item.starred && (
-          <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none" }}>★</span>
-        )}
         <input
           data-todoitem={item.id}
           style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
@@ -2924,11 +2957,8 @@ function AppInner() {
               <SortableList
                 items={sortableFlat}
                 setItems={newArr => setItems(prev => {
-                  // onAddBelow는 함수형 업데이터를 넘기므로 함수/배열 둘 다 처리
-                  const visibleItems = prev.filter(i => !i.deletedAt && i.folder === activeFolder);
-                  const resolved = typeof newArr === 'function' ? newArr(visibleItems) : newArr;
                   const others = prev.filter(i => i.deletedAt || i.folder !== activeFolder);
-                  return [...others, ...resolved];
+                  return [...others, ...newArr];
                 })}
                 getKey={i => i.id}
                 collapsedHdrs={collapsedHdrs}
