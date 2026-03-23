@@ -2933,30 +2933,44 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const bp = {};
   const drag = {};
   const fs = isMobile ? 15 : 14;
-  const [showMove, setShowMove] = useState(false);
-  const [dropPos, setDropPos]   = useState({ top:0, left:0 });
-  const btnRef = useRef(null);
 
-  // ⋯ 버튼 위치 계산 후 portal 드롭다운 열기
-  const openDrop = e => {
+  // menuState: null | 'main' | 'duedate' | 'moveto' | 'copyMove'
+  const [menuState,  setMenuState]  = useState(null);
+  const [dropPos,    setDropPos]    = useState({ top:0, left:0 });
+  const [selFolder,  setSelFolder]  = useState(null); // Move to 선택한 폴더
+  const btnRef  = useRef(null);
+  const dropRef = useRef(null);
+
+  const openMenu = e => {
     e.stopPropagation();
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
     setDropPos({ top: r.bottom + 6, left: r.right });
-    setShowMove(v => !v);
+    setMenuState(s => s ? null : 'main');
   };
 
-  // 외부 클릭 또는 스크롤 시 닫기
+  const closeMenu = () => { setMenuState(null); setSelFolder(null); };
+
+  // 외부 클릭만으로 닫기 (스크롤은 드롭다운 외부 스크롤만)
   useEffect(() => {
-    if (!showMove) return;
-    const close = () => setShowMove(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("scroll", close, true); // capture phase - 내부 스크롤도 감지
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("scroll", close, true);
+    if (!menuState) return;
+    const onMouseDown = e => {
+      if (dropRef.current && dropRef.current.contains(e.target)) return;
+      if (btnRef.current && btnRef.current.contains(e.target)) return;
+      closeMenu();
     };
-  }, [showMove]);
+    const onScroll = e => {
+      // 드롭다운 내부 스크롤이면 무시
+      if (dropRef.current && dropRef.current.contains(e.target)) return;
+      closeMenu();
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, [menuState]);
 
   if (item.type === T.HEADER) return (
     <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
@@ -2996,43 +3010,150 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-        {/* ⋯ 메뉴: Move + Due date — portal로 body에 렌더링해 overflow:hidden 우회 */}
+
+        {/* ⋯ 버튼 — portal 드롭다운 */}
         {onMove && folders && (
           <div style={{ flexShrink:0 }}>
             <span
               ref={btnRef}
               style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"0 3px", userSelect:"none", lineHeight:1 }}
-              onClick={openDrop}
+              onClick={openMenu}
               title="More options">⋯</span>
-            {showMove && createPortal(
+
+            {menuState && createPortal(
               <div
-                style={{ position:"fixed", top:dropPos.top, left:dropPos.left - 170,
+                ref={dropRef}
+                style={{ position:"fixed", top:dropPos.top, left:Math.min(dropPos.left - 180, window.innerWidth - 200),
                   background:"#fff", borderRadius:12,
-                  boxShadow:"0 8px 28px rgba(15,32,68,.18)", border:"1px solid #e0eaf8",
-                  zIndex:9999, minWidth:170, overflow:"hidden" }}
+                  boxShadow:"0 8px 32px rgba(15,32,68,.2)", border:"1px solid #e0eaf8",
+                  zIndex:9999, minWidth:180, overflow:"hidden",
+                  fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif" }}
                 onMouseDown={e => e.stopPropagation()}>
-                {/* Due date 설정 */}
-                <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Due Date</div>
-                <div style={{ padding:"0 10px 8px" }}>
-                  <TodoDatePicker
-                    value={item.dueDate || ""}
-                    onChange={d => { onUpdate({ dueDate: d }); setShowMove(false); }}
-                    onClear={() => { onUpdate({ dueDate: undefined }); setShowMove(false); }}
-                  />
-                </div>
-                {/* Move to folder */}
-                <div style={{ borderTop:"1px solid #f0f4fa", padding:"6px 14px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
-                <div style={{ maxHeight:180, overflowY:"auto" }}>
-                  {folders.map(f => (
-                    <div key={f.id}
-                      style={{ padding:"8px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
-                        color: item.folder===f.id?"#2563eb":"#1e3a6e",
-                        background: item.folder===f.id?"#eff6ff":"transparent" }}
-                      onMouseDown={() => { onMove(f.id); setShowMove(false); }}>
-                      {item.folder===f.id && <span style={{ marginRight:6, fontSize:11 }}>✓</span>}{f.name}
+
+                {/* ── Level 1: 메인 메뉴 ── */}
+                {menuState === 'main' && (
+                  <>
+                    <div style={{ padding:"8px 0 4px" }}>
+                      {/* Due Date */}
+                      <div
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                        onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                        onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                        onMouseDown={() => setMenuState('duedate')}>
+                        <span style={{ fontSize:15 }}>📅</span>
+                        <span style={{ flex:1 }}>Due Date</span>
+                        {item.dueDate && <span style={{ fontSize:10, color:"#ef4444", fontWeight:700 }}>{item.dueDate}</span>}
+                        <span style={{ color:"#c2d0e8", fontSize:12 }}>›</span>
+                      </div>
+                      {/* Move to */}
+                      <div
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                        onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                        onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                        onMouseDown={() => setMenuState('moveto')}>
+                        <span style={{ fontSize:15 }}>📂</span>
+                        <span style={{ flex:1 }}>Move to</span>
+                        <span style={{ color:"#c2d0e8", fontSize:12 }}>›</span>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
+
+                {/* ── Level 2a: Due Date 달력 ── */}
+                {menuState === 'duedate' && (
+                  <>
+                    <div style={{ display:"flex", alignItems:"center", padding:"10px 14px 6px", borderBottom:"1px solid #f0f4fa" }}>
+                      <span style={{ color:"#94a3b8", fontSize:16, cursor:"pointer", marginRight:8, lineHeight:1 }}
+                        onMouseDown={() => setMenuState('main')}>‹</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#1e3a6e" }}>Due Date</span>
+                    </div>
+                    <div style={{ padding:"10px 12px 12px" }}>
+                      <TodoDatePicker
+                        value={item.dueDate || ""}
+                        onChange={d => { onUpdate({ dueDate: d }); closeMenu(); }}
+                        onClear={() => { onUpdate({ dueDate: undefined }); closeMenu(); }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* ── Level 2b: Move to 폴더 선택 ── */}
+                {menuState === 'moveto' && (
+                  <>
+                    <div style={{ display:"flex", alignItems:"center", padding:"10px 14px 6px", borderBottom:"1px solid #f0f4fa" }}>
+                      <span style={{ color:"#94a3b8", fontSize:16, cursor:"pointer", marginRight:8, lineHeight:1 }}
+                        onMouseDown={() => setMenuState('main')}>‹</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#1e3a6e" }}>Select Folder</span>
+                    </div>
+                    <div style={{ maxHeight:200, overflowY:"auto" }}>
+                      {folders.map(f => (
+                        <div key={f.id}
+                          style={{ display:"flex", alignItems:"center", padding:"9px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
+                            color: item.folder===f.id?"#94a3b8":"#1e3a6e",
+                            background:"transparent",
+                            opacity: item.folder===f.id ? 0.5 : 1 }}
+                          onMouseEnter={e => { if (item.folder!==f.id) e.currentTarget.style.background="#f5f8ff"; }}
+                          onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                          onMouseDown={() => {
+                            if (item.folder === f.id) return;
+                            setSelFolder(f);
+                            setMenuState('copyMove');
+                          }}>
+                          <span style={{ flex:1 }}>{f.name}</span>
+                          {item.folder===f.id && <span style={{ fontSize:10, color:"#94a3b8" }}>현재</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* ── Level 3: Copy or Move 선택 ── */}
+                {menuState === 'copyMove' && selFolder && (
+                  <>
+                    <div style={{ display:"flex", alignItems:"center", padding:"10px 14px 6px", borderBottom:"1px solid #f0f4fa" }}>
+                      <span style={{ color:"#94a3b8", fontSize:16, cursor:"pointer", marginRight:8, lineHeight:1 }}
+                        onMouseDown={() => { setMenuState('moveto'); setSelFolder(null); }}>‹</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#1e3a6e", flex:1 }}>{selFolder.name}</span>
+                    </div>
+                    <div style={{ padding:"8px 0 6px" }}>
+                      {/* 이동 */}
+                      <div
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                        onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                        onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                        onMouseDown={() => { onMove(selFolder.id); closeMenu(); }}>
+                        <span style={{ fontSize:15 }}>✂️</span>
+                        <div>
+                          <div>이동</div>
+                          <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400 }}>이 폴더에서 제거됩니다</div>
+                        </div>
+                      </div>
+                      {/* 복사 */}
+                      <div
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                        onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                        onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                        onMouseDown={() => {
+                          // 복사: 원본 유지 + 새 아이템 대상 폴더에 추가
+                          const copy = {
+                            ...item,
+                            id: `i${Date.now()}_copy`,
+                            folder: selFolder.id,
+                            createdAt: mkDate(),
+                          };
+                          onUpdate({ _copy: copy }); // AppInner에서 처리
+                          closeMenu();
+                        }}>
+                        <span style={{ fontSize:15 }}>📋</span>
+                        <div>
+                          <div>복사</div>
+                          <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400 }}>이 폴더에도 남아있습니다</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
               </div>,
               document.body
             )}
@@ -3196,7 +3317,25 @@ function AppInner() {
     });
     if (type !== "divider") setFocusNewSBI(id);
   };
-  const upd      = (id, patch) => setItems(prev => prev.map(i => i.id===id ? {...i,...patch} : i));
+  const upd = (id, patch) => {
+    // 복사 기능: _copy 키가 있으면 원본 유지 + 새 아이템 추가
+    if (patch._copy) {
+      const { _copy, ...rest } = patch;
+      setItems(prev => {
+        const updated = rest && Object.keys(rest).length > 0
+          ? prev.map(i => i.id===id ? {...i,...rest} : i)
+          : [...prev];
+        // 현재 아이템 위치 다음에 삽입
+        const pos = updated.findIndex(i => i.id===id);
+        const copy = { ..._copy, id:`i${Date.now()}_copy` };
+        const arr = [...updated];
+        arr.splice(pos+1, 0, copy);
+        return arr;
+      });
+    } else {
+      setItems(prev => prev.map(i => i.id===id ? {...i,...patch} : i));
+    }
+  };
   const softDel  = useCallback(id => {
     const item = items.find(i => i.id===id);
     if (!item) return;
