@@ -1195,7 +1195,7 @@ const MANUAL_CONTENT = {
   ko: {
     lang: "한국어",
     title: "theNOTES 사용 가이드",
-    subtitle: "폴더·헤더·To-do·텍스트를 자유롭게 조합해 노트를 구성하고, Google Drive로 자동 동기화합니다.",
+    subtitle: "",
     sections: [
       {
         icon: "🗂️", title: "기본 구조",
@@ -1361,7 +1361,7 @@ const MANUAL_CONTENT = {
   en: {
     lang: "English",
     title: "theNOTES User Guide",
-    subtitle: "Combine Folders, Headers, To-dos, and Text freely, with automatic sync to Google Drive.",
+    subtitle: "",
     sections: [
       {
         icon: "🗂️", title: "Basic Structure",
@@ -1494,7 +1494,7 @@ const MANUAL_CONTENT = {
   ja: {
     lang: "日本語",
     title: "theNOTES 使い方ガイド",
-    subtitle: "フォルダ・ヘッダー・To-do・テキストを自由に組み合わせ、Google Driveへ自動同期します。",
+    subtitle: "",
     sections: [
       {
         icon: "🗂️", title: "基本構造",
@@ -1683,7 +1683,7 @@ function ManualView({ isMobile }) {
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize: isMobile?20:24, fontWeight:800, color:"#fff", marginBottom:4 }}>📖 {C.title}</div>
-            <div style={{ fontSize:12.5, color:"rgba(255,255,255,.7)", lineHeight:1.6 }}>{C.subtitle}</div>
+            {C.subtitle && <div style={{ fontSize:12.5, color:"rgba(255,255,255,.7)", lineHeight:1.6 }}>{C.subtitle}</div>}
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0, flexWrap:"wrap" }}>
             {/* 언어 선택 */}
