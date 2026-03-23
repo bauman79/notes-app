@@ -594,7 +594,6 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           {showFilter && (
             <div style={{position:"absolute",top:"100%",left:0,marginTop:4,background:"#fff",borderRadius:12,boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",zIndex:400,minWidth:170,overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
               <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Folder Filter</div>
-              {/* 전체 */}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",cursor:"pointer",borderBottom:"1px solid #f0f4fa",background:allSelected?"#eff6ff":"transparent"}}
                 onClick={()=>setFilterFolders(new Set())}>
                 <div style={{width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:allSelected?"#2563eb":"#c2d0e8",background:allSelected?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -623,7 +622,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
           {showNav && <div onClick={e=>e.stopPropagation()}><MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={()=>setShowNav(false)} label="Go to month"/></div>}
         </div>
         <button style={{...wBtn,background:"#2563eb",color:"#fff",border:"none",boxShadow:"0 2px 8px rgba(37,99,235,.3)"}} onClick={()=>setShowDl(true)}>↓ Excel</button>
-        {/* Excel 업로드(Import) */}
+        {/* Worklog Excel Import */}
         <label style={{...wBtn,cursor:"pointer",color:"#059669",borderColor:"#6ee7b7",background:"#f0fdf4"}} title="Excel 파일로 Worklog 가져오기">
           ↑ Import
           <input type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={e=>{
@@ -1105,7 +1104,7 @@ function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focu
   );
 }
 
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone }) {
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone, allItems, allWorklogs }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -1309,6 +1308,53 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20, fontSize:12.5, color:"#4b6fa8", lineHeight:1.8 }}>
               <div>the NOTES is a personal productivity app. Your notes are securely stored in your own Google Drive.</div>
               <div style={{ marginTop:8, fontSize:11, color:"#94a3b8" }}>Made by BAUMAN</div>
+              <div style={{ marginTop:6, fontSize:11, color:"#6b8bb5" }}>
+                문의/오류 신고: <a href="mailto:duholee79@gmail.com" style={{ color:"#2563eb", fontWeight:600, textDecoration:"none" }}>duholee79@gmail.com</a>
+              </div>
+            </div>
+
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Backup</div>
+            <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
+              <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:12, lineHeight:1.6 }}>
+                모든 폴더의 노트를 Excel 파일로 백업합니다. 각 폴더가 별도 시트로 저장됩니다.
+              </div>
+              <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #bfdbfe", background:"#eff6ff", color:"#2563eb", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}
+                onClick={() => {
+                  try {
+                    const wb = XLSX.utils.book_new();
+                    // 폴더별 시트 생성
+                    const allFolders = sidebarItems.filter(i => i.type === "folder");
+                    allFolders.forEach(folder => {
+                      const folderItems = (allItems||[]).filter(i => !i.deletedAt && i.folder === folder.id);
+                      if (folderItems.length === 0) return;
+                      const rows = folderItems.map(i => ({
+                        Type: i.type === "header" ? "Header" : i.type === "todo" ? "Todo" : "Text",
+                        Title: i.title || "",
+                        Body: i.body || "",
+                        Done: i.type === "todo" ? (i.done ? "Yes" : "No") : "",
+                        Starred: i.starred ? "★" : "",
+                        Date: i.createdAt || "",
+                      }));
+                      const ws = XLSX.utils.json_to_sheet(rows);
+                      ws["!cols"] = [{wch:8},{wch:35},{wch:50},{wch:6},{wch:6},{wch:12}];
+                      const sheetName = folder.name.slice(0, 31).replace(/[\\/:*?[\]]/g, "_");
+                      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+                    });
+                    // Worklog 시트
+                    if ((allWorklogs||[]).length > 0) {
+                      const wRows = (allWorklogs||[]).map(w => ({ Date:w.date||"", Project:w.project||"", "Key Point":w.keyPoint||"", Details:w.details||"", Notes:w.notes||"" }));
+                      const wws = XLSX.utils.json_to_sheet(wRows);
+                      wws["!cols"] = [{wch:12},{wch:22},{wch:30},{wch:40},{wch:25}];
+                      XLSX.utils.book_append_sheet(wb, wws, "Worklog");
+                    }
+                    if (wb.SheetNames.length === 0) { alert("백업할 데이터가 없습니다."); return; }
+                    const now = new Date();
+                    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+                    XLSX.writeFile(wb, `theNOTES_backup_${ts}.xlsx`);
+                  } catch(e) { alert("백업 실패: " + e.message); }
+                }}>
+                ↓ 전체 백업 (Excel)
+              </button>
             </div>
 
             <div style={{ fontSize:11, fontWeight:700, color:"#fca5a5", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Danger Zone</div>
@@ -2009,7 +2055,7 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 }
 
 
-function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
+function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
   const fileInputRef = useRef(null);
@@ -2063,9 +2109,15 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete }) {
     <>
       <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", flexDirection:"column", alignItems:"stretch", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
         <div style={{ display:"flex", alignItems:"center", gap:8, padding:pad, paddingBottom:6 }}>
-          <div style={{ width:3, height:16, borderRadius:2, background:"#2563eb", flexShrink:0 }} />
+          <div style={{ width:3, height:16, borderRadius:2, background:item.starred?"#f59e0b":"#2563eb", flexShrink:0 }} />
+          {item.starred && (
+            <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-4, pointerEvents:"none" }}>★</span>
+          )}
           <input style={{ color:"#0f2044", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, fontWeight:600, flex:1 }}
-            value={item.title} placeholder="Title..." onChange={e=>onUpdate({title:e.target.value})} onClick={e=>e.stopPropagation()} />
+            value={item.title} placeholder="Title..."
+            onChange={e=>onUpdate({title:e.target.value})}
+            onFocus={onFocus}
+            onClick={e=>e.stopPropagation()} />
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
             onClick={()=>onUpdate({starred:!item.starred})}>★</span>
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
@@ -2149,7 +2201,7 @@ const footBtn = {background:"none",border:"1px dashed #b8cce8",borderRadius:6,co
 
 
 // ─── SortableList ────────────────────────────────────────
-function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMode, selected, togSel, isMobile, upd, softDel, folders, focusNewItem, onFocusItemDone }) {
+function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMode, selected, togSel, isMobile, upd, softDel, folders, focusNewItem, onFocusItemDone, onFocusId }) {
   useEffect(() => {
     if (!focusNewItem) return;
     setTimeout(() => {
@@ -2206,7 +2258,9 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
                 </button>
                 <input style={{ fontWeight:700,color:"#1a3a78",flex:1,border:"none",background:"transparent",outline:"none",fontFamily:"inherit",fontSize:isMobile?15:14 }}
                   value={sec.header.title} placeholder="Header title..."
-                  onChange={e => upd(sec.header.id,{title:e.target.value})} onClick={e=>e.stopPropagation()} />
+                  onChange={e => upd(sec.header.id,{title:e.target.value})}
+                  onFocus={() => onFocusId?.(sec.header.id)}
+                  onClick={e=>e.stopPropagation()} />
                 {sec.children.length>0 && <span style={{ fontSize:10,color:"rgba(37,99,235,.5)",background:"rgba(37,99,235,.1)",borderRadius:10,padding:"1px 7px",flexShrink:0 }}>{sec.children.length}</span>}
                 <span style={{ fontSize:14,cursor:"pointer",flexShrink:0,color:sec.header.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
                   onClick={()=>upd(sec.header.id,{starred:!sec.header.starred})}>★</span>
@@ -2225,6 +2279,7 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
               {handle(idx, item.type===T.TEXT?16:14)}
               <div style={{ flex:1 }}>
                 <ItemBlock item={item} isMobile={isMobile} onUpdate={p=>upd(item.id,p)} onDelete={()=>softDel(item.id)}
+                  onFocus={() => onFocusId?.(item.id)}
                   onMove={folderId => upd(item.id, { folder:folderId })} folders={folders}
                   onAddBelow={item.type===T.TODO ? () => {
                     const newId = `i${Date.now()}`;
@@ -2306,17 +2361,21 @@ function CompletedSection({ doneTodos, upd, isMobile }) {
   );
 }
 
-function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddBelow }) {
+function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddBelow, onFocus }) {
   const bp = {};
   const drag = {};
   const fs = isMobile ? 15 : 14;
   const [showMove, setShowMove] = useState(false);
 
   if (item.type === T.HEADER) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:"3px solid #2563eb", borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+      {item.starred && <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1 }}>★</span>}
       <input style={{ fontWeight:700, color:"#1a3a78", flex:1, border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
-        value={item.title} placeholder="Header title..." onChange={e => onUpdate({ title:e.target.value })} onClick={e => e.stopPropagation()} />
-      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#3b82f6":"rgba(59,130,246,.3)" }}
+        value={item.title} placeholder="Header title..."
+        onChange={e => onUpdate({ title:e.target.value })}
+        onFocus={onFocus}
+        onClick={e => e.stopPropagation()} />
+      <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"rgba(59,130,246,.3)" }}
         onClick={() => onUpdate({ starred:!item.starred })}>★</span>
       <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
     </div>
@@ -2329,12 +2388,16 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
+        {item.starred && (
+          <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none" }}>★</span>
+        )}
         <input
           data-todoitem={item.id}
           style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
           value={item.title}
           placeholder="Add a task..."
           onChange={e => onUpdate({ title:e.target.value })}
+          onFocus={onFocus}
           onClick={e => e.stopPropagation()}
           onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
         />
@@ -2370,7 +2433,7 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   );
 
   if (item.type === T.TEXT) return (
-    <TextBlock item={item} isMobile={isMobile} drag={drag} bp={bp} fs={fs} onUpdate={onUpdate} onDelete={onDelete} />
+    <TextBlock item={item} isMobile={isMobile} drag={drag} bp={bp} fs={fs} onUpdate={onUpdate} onDelete={onDelete} onFocus={onFocus} />
   );
 
   return null;
@@ -2426,6 +2489,7 @@ function AppInner() {
   const [editingFN,    setEditingFN]    = useState(false);
   const [fnDraft,      setFnDraft]      = useState("");
   const [showAddMenu,  setShowAddMenu]  = useState(false);
+  const [lastFocusedId, setLastFocusedId] = useState(null); // 마지막 포커스된 아이템 ID
   const [showSidebar,   setShowSidebar]   = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [globalQuery,      setGlobalQuery]      = useState("");
@@ -2477,8 +2541,18 @@ function AppInner() {
     const ni = { id, type, folder:activeFolder, starred:false, createdAt:mkDate(), title:"" };
     if (type===T.TODO) ni.done = false;
     if (type===T.TEXT) { ni.body=""; ni.hiddenSections=[]; ni.links=[]; }
-    setItems(prev => [...prev, ni]);
+    setItems(prev => {
+      // lastFocusedId 가 현재 폴더의 아이템이면 그 바로 아래에 삽입
+      const focusIdx = lastFocusedId ? prev.findIndex(i => i.id === lastFocusedId && !i.deletedAt && i.folder === activeFolder) : -1;
+      if (focusIdx !== -1) {
+        const arr = [...prev];
+        arr.splice(focusIdx + 1, 0, ni);
+        return arr;
+      }
+      return [...prev, ni];
+    });
     setShowAddMenu(false);
+    setFocusNewItem(id);
   };
   const [focusNewSBI,  setFocusNewSBI]  = useState(null);
   const [focusNewItem, setFocusNewItem] = useState(null);
@@ -2716,7 +2790,8 @@ function AppInner() {
       user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout}
       trashCount={trashItems.length} syncStatus={syncStatus}
       activeSidebarId={activeFolder}
-      focusNewId={focusNewSBI} onFocusDone={() => setFocusNewSBI(null)} />
+      focusNewId={focusNewSBI} onFocusDone={() => setFocusNewSBI(null)}
+      allItems={items} allWorklogs={worklogs} />
   );
 
   const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
@@ -2846,6 +2921,71 @@ function AppInner() {
                       onClick={() => setSelMode(true)}>Select</button>
                   )
                 )}
+                {/* 폴더 Excel Export / Import */}
+                {!isSpecial && !selMode && (
+                  <>
+                    {/* Export */}
+                    <button title="이 폴더를 Excel로 내보내기"
+                      style={{ height:34, padding:"0 10px", borderRadius:8, border:"1px solid #bfdbfe", background:"#eff6ff", color:"#2563eb", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}
+                      onClick={() => {
+                        const folderName = activeF?.name || "folder";
+                        const folderItems = visibleItems;
+                        if (!folderItems.length) { alert("내보낼 항목이 없습니다."); return; }
+                        const rows = folderItems.map(i => ({
+                          Type: i.type==="header"?"Header":i.type==="todo"?"Todo":"Text",
+                          Title: i.title||"",
+                          Body: i.body||"",
+                          Done: i.type==="todo"?(i.done?"Yes":"No"):"",
+                          Starred: i.starred?"★":"",
+                          Date: i.createdAt||"",
+                        }));
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        ws["!cols"] = [{wch:8},{wch:35},{wch:50},{wch:6},{wch:6},{wch:12}];
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, folderName.slice(0,31));
+                        XLSX.writeFile(wb, `${folderName}_notes.xlsx`);
+                      }}>↓ Excel</button>
+                    {/* Import */}
+                    <label title="Excel에서 이 폴더로 불러오기"
+                      style={{ height:34, padding:"0 10px", borderRadius:8, border:"1px solid #6ee7b7", background:"#f0fdf4", color:"#059669", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", display:"flex", alignItems:"center" }}>
+                      ↑ Import
+                      <input type="file" accept=".xlsx,.xls" style={{ display:"none" }}
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          e.target.value = "";
+                          const reader = new FileReader();
+                          reader.onload = ev => {
+                            try {
+                              const wb = XLSX.read(ev.target.result, { type:"array" });
+                              const ws = wb.Sheets[wb.SheetNames[0]];
+                              const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+                              const typeMap = { "header":T.HEADER, "todo":T.TODO, "text":T.TEXT };
+                              const newItems = rows.map(r => {
+                                const rawType = String(r["Type"]||r["type"]||"text").toLowerCase();
+                                const type = typeMap[rawType] || T.TEXT;
+                                const ni = {
+                                  id: `i${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                                  type,
+                                  folder: activeFolder,
+                                  title: String(r["Title"]||r["title"]||"").trim(),
+                                  starred: !!(r["Starred"]||r["starred"]),
+                                  createdAt: String(r["Date"]||r["date"]||"") || mkDate(),
+                                };
+                                if (type===T.TODO) { ni.done = String(r["Done"]||"").toLowerCase()==="yes"; }
+                                if (type===T.TEXT) { ni.body = String(r["Body"]||r["body"]||""); ni.hiddenSections=[]; ni.links=[]; }
+                                return ni;
+                              }).filter(i => i.title || i.body);
+                              if (!newItems.length) { alert("불러올 항목이 없습니다.\n열 이름: Type, Title, Body, Done, Starred, Date"); return; }
+                              setItems(prev => [...prev, ...newItems]);
+                              alert(`${newItems.length}개 항목을 현재 폴더에 추가했습니다.`);
+                            } catch(err) { alert("파일 읽기 실패: " + err.message); }
+                          };
+                          reader.readAsArrayBuffer(file);
+                        }} />
+                    </label>
+                  </>
+                )}
                 {!isSpecial && !selMode && (
                   <div style={{ position:"relative" }}>
                     <button style={{ width:38, height:38, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
@@ -2957,8 +3097,10 @@ function AppInner() {
               <SortableList
                 items={sortableFlat}
                 setItems={newArr => setItems(prev => {
+                  const visibleItems = prev.filter(i => !i.deletedAt && i.folder === activeFolder);
+                  const resolved = typeof newArr === 'function' ? newArr(visibleItems) : newArr;
                   const others = prev.filter(i => i.deletedAt || i.folder !== activeFolder);
-                  return [...others, ...newArr];
+                  return [...others, ...resolved];
                 })}
                 getKey={i => i.id}
                 collapsedHdrs={collapsedHdrs}
@@ -2972,6 +3114,7 @@ function AppInner() {
                 folders={folders}
                 focusNewItem={focusNewItem}
                 onFocusItemDone={() => setFocusNewItem(null)}
+                onFocusId={setLastFocusedId}
               />
             );
           })()}
