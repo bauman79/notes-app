@@ -765,6 +765,30 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
 }
 
 // ─── WRow ─────────────────────────────────────────────────
+// ─── WRowTextarea: auto-resize textarea for Worklog cells ─
+function WRowTextarea({ value, placeholder, onChange }) {
+  const ref = useRef(null);
+  // 매 렌더마다 높이 자동 조절 (선택 없이도 전체 내용 표시)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  });
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      style={{ ...wCell, fontSize:13, resize:"none", overflowY:"hidden",
+        lineHeight:1.5, padding:"2px 4px", boxSizing:"border-box",
+        minHeight:28, maxHeight:120, display:"block" }}
+      value={value}
+      placeholder={placeholder}
+      onChange={e => onChange(e.target.value)}
+    />
+  );
+}
+
 function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpdate, onDelete, onAddBelow }) {
   const [showDP,   setShowDP]   = useState(false);
   const [showFP,   setShowFP]   = useState(false);
@@ -918,17 +942,17 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
 
   // ── PC 레이아웃 ────────────────────────────────────────
   return (
-    <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,alignItems:"start",
-      background:isSel?"#eff6ff":"#fff",borderRadius:10,padding:"7px 8px",marginBottom:3,
+    <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,alignItems:"center",
+      background:isSel?"#eff6ff":"#fff",borderRadius:10,padding:"6px 8px",marginBottom:3,
       boxShadow:isSel?"0 0 0 1.5px #93c5fd":"0 1px 3px rgba(15,32,68,.05)"}}>
-      <div style={{...wCB,...(isSel?wCBOn:{}),marginTop:2}} onClick={onToggleSel}>{isSel&&"✓"}</div>
+      <div style={{...wCB,...(isSel?wCBOn:{})}} onClick={onToggleSel}>{isSel&&"✓"}</div>
       {datePill}
       {folderPill}
-      {/* Key point */}
-      <input style={{...wCell,fontSize:13,display:"block"}} value={entry.keyPoint} placeholder="Key point..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
-      <input style={{...wCell,fontSize:13,display:"block",verticalAlign:"top"}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>
-      <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:38,maxHeight:120,lineHeight:1.5,padding:"4px",display:"block",verticalAlign:"top",boxSizing:"border-box"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>
-      <div style={{display:"flex",flexDirection:"column",gap:2}}>
+      {/* Key point — textarea: 자동 줄바꿈 */}
+      <WRowTextarea value={entry.keyPoint} placeholder="Key point..." onChange={v=>onUpdate({keyPoint:v})} />
+      <WRowTextarea value={entry.details}  placeholder="Details..."   onChange={v=>onUpdate({details:v})} />
+      <WRowTextarea value={entry.notes}    placeholder="Notes..."     onChange={v=>onUpdate({notes:v})} />
+      <div style={{display:"flex",flexDirection:"column",gap:2,alignSelf:"center"}}>
         <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
         <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
       </div>
