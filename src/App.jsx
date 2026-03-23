@@ -1497,11 +1497,15 @@ function ManualView({ isMobile }) {
       </div>
 
       {/* 섹션 목차 (번호 네비) */}
-      <div style={{ background:"#fff", borderBottom:"1px solid #e0eaf8", padding:"10px 40px", display:"flex", gap:6, flexWrap:"wrap", flexShrink:0, overflowX:"auto" }}>
+      <div style={{ background:"#fff", borderBottom:"1px solid #e0eaf8", padding: isMobile?"8px 10px":"10px 40px", display:"flex", gap:isMobile?2:6, flexWrap:"wrap", flexShrink:0, overflowX:"auto" }}>
         {C.sections.map((s, i) => (
           <a key={i} href={`#ms-${i}`}
-            style={{ fontSize:11.5, color:"#4b6fa8", background:"#eff6ff", borderRadius:20, padding:"3px 10px", textDecoration:"none", fontWeight:600, whiteSpace:"nowrap" }}>
-            {s.icon} {s.title}
+            title={s.title}
+            style={{ fontSize:isMobile?16:11.5, color:"#4b6fa8", background:"#eff6ff", borderRadius:20,
+              padding: isMobile?"6px 8px":"3px 10px",
+              textDecoration:"none", fontWeight:600, whiteSpace:"nowrap", lineHeight:1 }}>
+            {/* 모바일: 아이콘만, PC: 아이콘 + 텍스트 */}
+            {isMobile ? s.icon : `${s.icon} ${s.title}`}
           </a>
         ))}
       </div>
@@ -2989,26 +2993,59 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   if (item.type === T.TODO) return (
     <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", position:"relative", ...drag }} {...bp}>
       {/* 메인 행 */}
-      <div style={{ padding:isMobile?"10px 10px 8px":"10px 14px 8px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
-        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
+      <div style={{ padding:isMobile?"10px 10px 8px":"10px 14px 8px", display:"flex",
+        alignItems:isMobile?"flex-start":"center",
+        gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
+        {/* 체크박스 */}
+        <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0,
+          width:isMobile?20:18, height:isMobile?20:18,
+          marginTop:isMobile?2:0,
+          ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
         </div>
         {item.starred && (
-          <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none" }}>★</span>
+          <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none", marginTop:isMobile?3:0 }}>★</span>
         )}
-        <input
-          data-todoitem={item.id}
-          style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
-          value={item.title}
-          placeholder="Add a task..."
-          onChange={e => onUpdate({ title:e.target.value })}
-          onFocus={onFocus}
-          onClick={e => e.stopPropagation()}
-          onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
-        />
+        {/* 텍스트: 모바일=textarea(자동줄바꿈), PC=input(한줄) */}
+        {isMobile ? (
+          <textarea
+            data-todoitem={item.id}
+            rows={1}
+            style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none",
+              fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, resize:"none",
+              overflowY:"hidden", lineHeight:1.5, padding:0,
+              ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+            value={item.title}
+            placeholder="Add a task..."
+            onChange={e => {
+              // 자동 높이 조절
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+              onUpdate({ title:e.target.value });
+            }}
+            onFocus={e => {
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+              onFocus?.();
+            }}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+          />
+        ) : (
+          <input
+            data-todoitem={item.id}
+            style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+            value={item.title}
+            placeholder="Add a task..."
+            onChange={e => onUpdate({ title:e.target.value })}
+            onFocus={onFocus}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+          />
+        )}
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
-        <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
+        <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5", marginTop:isMobile?2:0 }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
 
         {/* ⋯ 버튼 — portal 드롭다운 */}
