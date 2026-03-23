@@ -769,10 +769,11 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
   const selFolder = folders.find(f => f.name===entry.project);
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,alignItems:"center",
+    <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,alignItems:"start",
       background:isSel?"#eff6ff":"#fff",borderRadius:10,padding:"7px 8px",marginBottom:3,
       boxShadow:isSel?"0 0 0 1.5px #93c5fd":"0 1px 3px rgba(15,32,68,.05)"}}>
-      <div style={{...wCB,...(isSel?wCBOn:{})}} onClick={onToggleSel}>{isSel&&"✓"}</div>
+      {/* 체크박스 — 상단 정렬 맞춤 */}
+      <div style={{...wCB,...(isSel?wCBOn:{}),marginTop:2}} onClick={onToggleSel}>{isSel&&"✓"}</div>
 
       {/* Date pill */}
       <div style={{position:"relative"}}>
@@ -822,8 +823,8 @@ function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpd
         </>)}
       </div>
 
-      {!isMobile && <input style={{...wCell,fontSize:13}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
-      {!isMobile && <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:36,maxHeight:90,lineHeight:1.5,padding:"4px"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
+      {!isMobile && <input style={{...wCell,fontSize:13,display:"block",verticalAlign:"top"}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
+      {!isMobile && <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:38,maxHeight:120,lineHeight:1.5,padding:"4px",display:"block",verticalAlign:"top",boxSizing:"border-box"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
         <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
         <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
@@ -3406,6 +3407,7 @@ function AppInner() {
     setAccessToken(token);
     setUser(userInfo);
     localStorage.setItem("gtoken", token);
+    localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000)); // 58분 후 만료 기록
     localStorage.setItem("guser", JSON.stringify(userInfo));
     try {
       const fileId = await gdriveFind(token);
@@ -3460,17 +3462,22 @@ function AppInner() {
     }).catch(e => console.warn("Redirect result error:", e));
   }, []);
 
-  // ─── Firebase Auth state listener (auto token refresh) ──
+  // ─── Firebase Auth state listener + silent token refresh ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
       if (!fbUser) return;
-      // Get fresh Drive token
+      const storedToken = localStorage.getItem("gtoken");
+      if (!storedToken) return;
+      // 토큰 만료 체크 — 만료됐거나 5분 이내 만료 예정이면 재로그인 안내
+      const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
+      if (expiry && Date.now() > expiry - 300000) {
+        // 만료 임박 — 사용자에게 재로그인 안내 (popup 없이 강제 로그아웃 안 함)
+        setSyncStatus("error");
+        console.warn("Token 만료 임박 — 재로그인 필요");
+        return;
+      }
       try {
-        const credential = await fbUser.getIdToken(true);
-        // Re-fetch OAuth token via silent re-auth if stored token expired
-        const storedToken = localStorage.getItem("gtoken");
-        if (!storedToken) return;
-        // Token still valid — just update user info
+        await fbUser.getIdToken(true);
         const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
         setUser(userInfo);
         localStorage.setItem("guser", JSON.stringify(userInfo));
@@ -3493,6 +3500,7 @@ function AppInner() {
     }
     try { await signOut(firebaseAuth); } catch {}
     localStorage.removeItem("gtoken");
+    localStorage.removeItem("gtoken_expiry");
     localStorage.removeItem("guser");
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
@@ -3543,15 +3551,13 @@ function AppInner() {
         }
       } catch(e) {
         if (e.message === "TOKEN_EXPIRED") {
-          // Token expired — clear session, show login
-          localStorage.removeItem("gtoken");
-          localStorage.removeItem("guser");
-          setUser(null);
-          setAccessToken(null);
+          // 토큰 만료 — 강제 로그아웃 하지 않고 재로그인 안내만
+          // (로컬 데이터는 유지, 사용자가 직접 재로그인할 때까지 오프라인 모드로 유지)
           setSyncStatus("error");
-          console.warn("Token expired, please re-login.");
+          console.warn("Token expired — please re-login to sync.");
         } else {
           console.error("Session restore error:", e);
+          setSyncStatus("error");
         }
       } finally {
         setDataLoaded(true);
