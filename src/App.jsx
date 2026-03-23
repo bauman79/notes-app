@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth";
@@ -2933,12 +2934,28 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const drag = {};
   const fs = isMobile ? 15 : 14;
   const [showMove, setShowMove] = useState(false);
-  // 외부 클릭 시 드롭다운 닫기
+  const [dropPos, setDropPos]   = useState({ top:0, left:0 });
+  const btnRef = useRef(null);
+
+  // ⋯ 버튼 위치 계산 후 portal 드롭다운 열기
+  const openDrop = e => {
+    e.stopPropagation();
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setDropPos({ top: r.bottom + 6, left: r.right });
+    setShowMove(v => !v);
+  };
+
+  // 외부 클릭 또는 스크롤 시 닫기
   useEffect(() => {
     if (!showMove) return;
     const close = () => setShowMove(false);
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    document.addEventListener("scroll", close, true); // capture phase - 내부 스크롤도 감지
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("scroll", close, true);
+    };
   }, [showMove]);
 
   if (item.type === T.HEADER) return (
@@ -2979,19 +2996,24 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-        {/* ⋯ 메뉴: Move + Due date */}
+        {/* ⋯ 메뉴: Move + Due date — portal로 body에 렌더링해 overflow:hidden 우회 */}
         {onMove && folders && (
-          <div style={{ position:"relative", flexShrink:0 }}>
-            <span style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"0 3px", userSelect:"none", lineHeight:1 }}
-              onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="More options">⋯</span>
-            {showMove && (
-              <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", background:"#fff", borderRadius:12,
-                boxShadow:"0 8px 28px rgba(15,32,68,.18)", border:"1px solid #e0eaf8",
-                zIndex:600, minWidth:170, overflow:"hidden" }}
-                onClick={e => e.stopPropagation()}>
+          <div style={{ flexShrink:0 }}>
+            <span
+              ref={btnRef}
+              style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"0 3px", userSelect:"none", lineHeight:1 }}
+              onClick={openDrop}
+              title="More options">⋯</span>
+            {showMove && createPortal(
+              <div
+                style={{ position:"fixed", top:dropPos.top, left:dropPos.left - 170,
+                  background:"#fff", borderRadius:12,
+                  boxShadow:"0 8px 28px rgba(15,32,68,.18)", border:"1px solid #e0eaf8",
+                  zIndex:9999, minWidth:170, overflow:"hidden" }}
+                onMouseDown={e => e.stopPropagation()}>
                 {/* Due date 설정 */}
                 <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Due Date</div>
-                <div style={{ padding:"0 10px 8px", position:"relative" }}>
+                <div style={{ padding:"0 10px 8px" }}>
                   <TodoDatePicker
                     value={item.dueDate || ""}
                     onChange={d => { onUpdate({ dueDate: d }); setShowMove(false); }}
@@ -3011,7 +3033,8 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
                     </div>
                   ))}
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}
