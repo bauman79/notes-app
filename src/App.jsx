@@ -3531,6 +3531,19 @@ function AppInner() {
   const [globalQuery,      setGlobalQuery]      = useState("");
   const [selMode,      setSelMode]      = useState(false);
   const [selected,     setSelected]     = useState(new Set());
+  const [selMoveMenu,  setSelMoveMenu]  = useState(null); // null | 'folder' | {folderId, folderName}
+  const [selMovePosn,  setSelMovePosn]  = useState({ top:0, left:0 });
+  const selMoveBtnRef = useRef(null);
+  // selMoveMenu 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!selMoveMenu) return;
+    const close = e => {
+      if (selMoveBtnRef.current?.contains(e.target)) return;
+      setSelMoveMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [selMoveMenu]);
   const [collapsedHdrs,setCollapsedHdrs] = useState(() => {
     try {
       const saved = localStorage.getItem("notes_collapsedHdrs");
@@ -3636,6 +3649,21 @@ function AppInner() {
     setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:mkTs(), originalFolder:i.folder, originalFolderName:fn} : i));
   }, [items, folders]);
   const delSel   = () => { selected.forEach(id => softDel(id)); setSelected(new Set()); setSelMode(false); };
+  const moveSel  = folderId => {
+    setItems(prev => prev.map(i => selected.has(i.id) ? {...i, folder:folderId} : i));
+    setSelected(new Set()); setSelMode(false);
+  };
+  const copySel  = folderId => {
+    const ordered = visibleItems.filter(i => selected.has(i.id));
+    const copies = ordered.map((i, idx) => ({
+      ...i,
+      id: `i${Date.now()}_${idx}_${i.id.slice(-4)}_copy`,
+      folder: folderId,
+      createdAt: mkDate(),
+    }));
+    setItems(prev => [...prev, ...copies]);
+    setSelected(new Set()); setSelMode(false);
+  };
   const shareSel = () => {
     // 화면 표시 순서대로 정렬 (visibleItems 순서 기준)
     const orderedIds = visibleItems.map(i => i.id).filter(id => selected.has(id));
@@ -4041,6 +4069,14 @@ function AppInner() {
                       {selected.size > 0 && (
                         <>
                           <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>↓ PDF</button>
+                          <button
+                            ref={selMoveBtnRef}
+                            style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#166534" }}
+                            onClick={e => {
+                              const r = selMoveBtnRef.current?.getBoundingClientRect();
+                              if (r) setSelMovePosn({ top: r.bottom + 4, left: r.left });
+                              setSelMoveMenu(v => v ? null : 'folder');
+                            }}>Move/Copy</button>
                           <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                         </>
                       )}
@@ -4158,6 +4194,13 @@ function AppInner() {
                     {selected.size > 0 && (
                       <>
                         <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>↓ PDF</button>
+                        <button
+                          style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#166534" }}
+                          onClick={e => {
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setSelMovePosn({ top: r.bottom + 4, left: Math.max(4, r.left) });
+                            setSelMoveMenu(v => v ? null : 'folder');
+                          }}>Move/Copy</button>
                         <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                       </>
                     )}
@@ -4291,6 +4334,69 @@ function AppInner() {
               onClick={() => setShowLogin(false)}>Cancel</button>
           </div>
         </div>
+      )}
+
+      {/* ── Select Move/Copy portal dropdown ── */}
+      {selMoveMenu && createPortal(
+        <div
+          style={{ position:"fixed", top:selMovePosn.top, left:selMovePosn.left,
+            background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.2)",
+            border:"1px solid #e0eaf8", zIndex:9999, minWidth:190, overflow:"hidden",
+            fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif" }}
+          onMouseDown={e => e.stopPropagation()}>
+          {selMoveMenu === 'folder' ? (
+            <>
+              <div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", borderBottom:"1px solid #f0f4fa" }}>
+                폴더 선택 ({selected.size}개 항목)
+              </div>
+              <div style={{ maxHeight:220, overflowY:"auto" }}>
+                {folders.filter(f => f.id !== activeFolder).map(f => (
+                  <div key={f.id}
+                    style={{ display:"flex", alignItems:"center", padding:"9px 14px", fontSize:13, cursor:"pointer", color:"#1e3a6e", fontWeight:500 }}
+                    onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                    onMouseDown={() => setSelMoveMenu({ folderId:f.id, folderName:f.name })}>
+                    <span style={{ flex:1 }}>{f.name}</span>
+                    <span style={{ color:"#c2d0e8", fontSize:12 }}>›</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : selMoveMenu?.folderId ? (
+            <>
+              <div style={{ display:"flex", alignItems:"center", padding:"10px 14px 6px", borderBottom:"1px solid #f0f4fa" }}>
+                <span style={{ color:"#94a3b8", fontSize:16, cursor:"pointer", marginRight:8 }}
+                  onMouseDown={() => setSelMoveMenu('folder')}>‹</span>
+                <span style={{ fontSize:12, fontWeight:700, color:"#1e3a6e", flex:1 }}>{selMoveMenu.folderName}</span>
+              </div>
+              <div style={{ padding:"8px 0 6px" }}>
+                <div
+                  style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                  onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                  onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                  onMouseDown={() => { moveSel(selMoveMenu.folderId); setSelMoveMenu(null); }}>
+                  <span style={{ fontSize:15 }}>✂️</span>
+                  <div>
+                    <div>이동</div>
+                    <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400 }}>이 폴더에서 제거됩니다</div>
+                  </div>
+                </div>
+                <div
+                  style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", cursor:"pointer", fontSize:13, fontWeight:600, color:"#1e3a6e" }}
+                  onMouseEnter={e => e.currentTarget.style.background="#f5f8ff"}
+                  onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                  onMouseDown={() => { copySel(selMoveMenu.folderId); setSelMoveMenu(null); }}>
+                  <span style={{ fontSize:15 }}>📋</span>
+                  <div>
+                    <div>복사</div>
+                    <div style={{ fontSize:11, color:"#94a3b8", fontWeight:400 }}>이 폴더에도 남아있습니다</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>,
+        document.body
       )}
     </div>
   );
