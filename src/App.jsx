@@ -437,6 +437,57 @@ function FloatingToolbar({ tb, exec, tbRef }) {
   );
 }
 
+// ─── TodoDatePicker ─ 인라인 달력 (To-do 마감기한용) ──────
+function TodoDatePicker({ value, onChange, onClear }) {
+  const parse = d => d ? { y:parseInt(d.split(".")[0]), m:parseInt(d.split(".")[1])-1 } : { y:new Date().getFullYear(), m:new Date().getMonth() };
+  const [cur, setCur] = useState(() => parse(value));
+  const dim = (y,m) => new Date(y,m+1,0).getDate();
+  const fd  = (y,m) => new Date(y,m,1).getDay();
+  const pad = n => String(n).padStart(2,"0");
+  const cells = [...Array(fd(cur.y,cur.m)).fill(null), ...Array(dim(cur.y,cur.m)).fill(0).map((_,i)=>i+1)];
+  const isSel = d => value === `${cur.y}.${pad(cur.m+1)}.${pad(d)}`;
+  const today = new Date();
+  const isToday = d => today.getFullYear()===cur.y && today.getMonth()===cur.m && today.getDate()===d;
+  const PB = { background:"none", border:"none", fontSize:16, cursor:"pointer", color:"#6b8bb5", padding:"2px 6px", borderRadius:6, fontFamily:"inherit" };
+  return (
+    <div style={{ background:"#f8faff", borderRadius:10, padding:"10px 10px 8px", border:"1px solid #e0eaf8" }}>
+      {/* 선택된 날짜 & 삭제 */}
+      {value && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+          <span style={{ fontSize:12, fontWeight:700, color:"#ef4444" }}>📅 {value}</span>
+          <span style={{ fontSize:13, color:"#fca5a5", cursor:"pointer", fontWeight:700 }} onClick={onClear} title="삭제">×</span>
+        </div>
+      )}
+      {/* 월 네비 */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+        <button onClick={e=>{e.preventDefault();setCur(p=>p.m===0?{y:p.y-1,m:11}:{...p,m:p.m-1});}} style={PB}>‹</button>
+        <span style={{ fontSize:12, fontWeight:700, color:"#1e3a6e" }}>{cur.y} / {cur.m+1}</span>
+        <button onClick={e=>{e.preventDefault();setCur(p=>p.m===11?{y:p.y+1,m:0}:{...p,m:p.m+1});}} style={PB}>›</button>
+      </div>
+      {/* 요일 헤더 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:1, marginBottom:2 }}>
+        {["S","M","T","W","T","F","S"].map((d,i) => (
+          <div key={i} style={{ textAlign:"center", fontSize:10, color: i===0?"#ef4444":i===6?"#6b8bb5":"#94a3b8", fontWeight:600 }}>{d}</div>
+        ))}
+      </div>
+      {/* 날짜 그리드 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:1 }}>
+        {cells.map((d,i) => (
+          <div key={i}
+            onClick={() => d && onChange(`${cur.y}.${pad(cur.m+1)}.${pad(d)}`)}
+            style={{ textAlign:"center", fontSize:11.5, padding:"4px 0", borderRadius:5,
+              cursor:d?"pointer":"default",
+              background: isSel(d)?"#2563eb": isToday(d)?"#eff6ff":"transparent",
+              color: isSel(d)?"#fff": isToday(d)?"#2563eb": d?(i%7===0?"#ef4444":"#1e3a6e"):"transparent",
+              fontWeight: isSel(d)||isToday(d)?700:400 }}>
+            {d||""}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── DatePicker ───────────────────────────────────────────
 function DatePicker({ value, onChange, onClose }) {
   const parse = d => d ? { y:parseInt(d.split(".")[0]), m:parseInt(d.split(".")[1])-1 } : { y:new Date().getFullYear(), m:new Date().getMonth() };
@@ -2882,6 +2933,13 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   const drag = {};
   const fs = isMobile ? 15 : 14;
   const [showMove, setShowMove] = useState(false);
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    if (!showMove) return;
+    const close = () => setShowMove(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showMove]);
 
   if (item.type === T.HEADER) return (
     <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
@@ -2898,8 +2956,9 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   );
 
   if (item.type === T.TODO) return (
-    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", display:"flex", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", position:"relative", ...drag }} {...bp}>
-      <div style={{ padding:isMobile?"12px 10px":"12px 14px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
+    <div style={{ background:"#fff", borderRadius:12, marginBottom:5, boxShadow:"0 1px 4px rgba(15,32,68,.06)", cursor:"grab", userSelect:"none", width:"100%", boxSizing:"border-box", position:"relative", ...drag }} {...bp}>
+      {/* 메인 행 */}
+      <div style={{ padding:isMobile?"10px 10px 8px":"10px 14px 8px", display:"flex", alignItems:"center", gap:8, width:"100%", boxSizing:"border-box", minWidth:0 }}>
         <div style={{ borderRadius:5, border:"1.5px solid #c2d0e8", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, width:isMobile?20:18, height:isMobile?20:18, ...(item.done?{background:"#2563eb",borderColor:"#2563eb"}:{}) }}
           onClick={() => onUpdate({ done:!item.done })}>
           {item.done && <span style={{ color:"#fff", fontSize:11, fontWeight:700 }}>✓</span>}
@@ -2920,31 +2979,54 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
-        {/* Move to folder */}
+        {/* ⋯ 메뉴: Move + Due date */}
         {onMove && folders && (
           <div style={{ position:"relative", flexShrink:0 }}>
-            <span style={{ color:"#c2d0e8", fontSize:14, cursor:"pointer", padding:"0 2px", userSelect:"none" }}
-              onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="Move to folder">⋯</span>
+            <span style={{ color:"#c2d0e8", fontSize:16, cursor:"pointer", padding:"0 3px", userSelect:"none", lineHeight:1 }}
+              onClick={e => { e.stopPropagation(); setShowMove(v=>!v); }} title="More options">⋯</span>
             {showMove && (
-              <div style={{ position:"absolute", right:0, bottom:"100%", background:"#fff", borderRadius:10,
-                boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8",
-                zIndex:500, minWidth:150, overflow:"hidden", marginBottom:4 }}>
-                <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
-                {folders.map(f => (
-                  <div key={f.id}
-                    style={{ padding:"9px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
-                      color: item.folder===f.id?"#2563eb":"#1e3a6e",
-                      background: item.folder===f.id?"#eff6ff":"transparent" }}
-                    onMouseDown={() => { onMove(f.id); setShowMove(false); }}>
-                    {item.folder===f.id && <span style={{ marginRight:6, fontSize:11 }}>✓</span>}{f.name}
-                  </div>
-                ))}
+              <div style={{ position:"absolute", right:0, top:"calc(100% + 4px)", background:"#fff", borderRadius:12,
+                boxShadow:"0 8px 28px rgba(15,32,68,.18)", border:"1px solid #e0eaf8",
+                zIndex:600, minWidth:170, overflow:"hidden" }}
+                onClick={e => e.stopPropagation()}>
+                {/* Due date 설정 */}
+                <div style={{ padding:"8px 14px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Due Date</div>
+                <div style={{ padding:"0 10px 8px", position:"relative" }}>
+                  <TodoDatePicker
+                    value={item.dueDate || ""}
+                    onChange={d => { onUpdate({ dueDate: d }); setShowMove(false); }}
+                    onClear={() => { onUpdate({ dueDate: undefined }); setShowMove(false); }}
+                  />
+                </div>
+                {/* Move to folder */}
+                <div style={{ borderTop:"1px solid #f0f4fa", padding:"6px 14px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Move to</div>
+                <div style={{ maxHeight:180, overflowY:"auto" }}>
+                  {folders.map(f => (
+                    <div key={f.id}
+                      style={{ padding:"8px 14px", fontSize:13, cursor:"pointer", fontWeight:500,
+                        color: item.folder===f.id?"#2563eb":"#1e3a6e",
+                        background: item.folder===f.id?"#eff6ff":"transparent" }}
+                      onMouseDown={() => { onMove(f.id); setShowMove(false); }}>
+                      {item.folder===f.id && <span style={{ marginRight:6, fontSize:11 }}>✓</span>}{f.name}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         )}
         <span style={{ color:"#94a3b8", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
       </div>
+      {/* 마감기한 표시 */}
+      {item.dueDate && (
+        <div style={{ display:"flex", alignItems:"center", gap:4, padding:"0 14px 8px", paddingLeft: isMobile?"38px":"40px" }}
+          onClick={e => e.stopPropagation()}>
+          <span style={{ fontSize:11, color:"#ef4444", fontWeight:600 }}>📅 {item.dueDate}</span>
+          <span style={{ fontSize:13, color:"#fca5a5", cursor:"pointer", lineHeight:1, padding:"0 2px" }}
+            title="마감기한 삭제"
+            onClick={() => onUpdate({ dueDate: undefined })}>×</span>
+        </div>
+      )}
     </div>
   );
 
