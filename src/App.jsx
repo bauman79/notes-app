@@ -1205,10 +1205,11 @@ const MANUAL_CONTENT = {
           "섹션 이름을 클릭하면 직접 수정할 수 있습니다.",
           "⠿ 핸들을 드래그하면 폴더·노트 순서를 바꿀 수 있습니다.",
           "사이드바 하단 + Add 버튼으로 새 폴더·섹션·구분선을 추가합니다.",
+          "Notice(★), Calendar(◷), Worklog(📋), Trash(🗑), Manual(📖) 은 하단 고정 메뉴입니다.",
         ],
         ui: {
           label: "사이드바 구조",
-          items: ["▾ PROJECT", "  ○ Work  ●", "  ○ Personal", "▾ AREA", "  ○ Health", "★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"],
+          items: ["▾ PROJECT", "  ○ Work  ●", "  ○ Personal", "▾ AREA", "  ○ Health", "★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash  📖 Manual"],
         }
       },
       {
@@ -1219,10 +1220,25 @@ const MANUAL_CONTENT = {
           "☐ To-do — 체크박스가 있는 할 일. Enter 키로 다음 항목을 바로 추가합니다.",
           "T Text — 서식 있는 텍스트 노트. 표·숨김 섹션·링크·파일첨부 가능.",
           "항목을 선택(포커스)한 상태에서 + 버튼을 누르면 그 아래에 삽입됩니다.",
+          "폴더 상단 ↓ Excel 로 현재 폴더를 엑셀로 내보내고, ↑ Import 로 불러올 수 있습니다.",
         ],
         ui: {
-          label: "+ 추가 메뉴",
-          items: ["▬ Header", "☐ To-do", "T  Text"],
+          label: "+ 추가 메뉴 / 상단 툴바",
+          items: ["▬ Header", "☐ To-do", "T  Text", "──────────────", "🔍  Select  ↓ Excel  ↑ Import  [+]"],
+        }
+      },
+      {
+        icon: "☐", title: "To-do 기능 — ⋯ 메뉴",
+        desc: "To-do 항목 오른쪽 ⋯ 버튼을 누르면 Due Date(마감기한)와 Move to(이동/복사) 메뉴가 열립니다.",
+        tips: [
+          "📅 Due Date — 달력에서 마감기한 선택. 선택 후 제목 아래에 빨간색으로 표시됩니다.",
+          "마감기한 옆 × 버튼 또는 달력에서 × 버튼으로 삭제합니다.",
+          "📂 Move to — 폴더 목록 선택 후 ✂️ 이동(원본 삭제) 또는 📋 복사(원본 유지) 선택.",
+          "Enter 키를 누르면 바로 아래에 새 To-do가 추가됩니다.",
+        ],
+        ui: {
+          label: "⋯ 메뉴 구조",
+          items: ["📅 Due Date  ›", "📂 Move to  ›", "  → 폴더 선택 후: ✂️ 이동 / 📋 복사"],
         }
       },
       {
@@ -1232,7 +1248,7 @@ const MANUAL_CONTENT = {
           "완료된 항목은 하단 Completed 섹션으로 자동 이동됩니다.",
           "Completed ▾ 를 클릭해 펼치면 완료 목록을 볼 수 있습니다.",
           "✓ 버튼을 다시 클릭하면 미완료로 되돌릴 수 있습니다.",
-          "× 버튼을 클릭하면 휴지통으로 이동합니다.",
+          "Completed의 × 버튼을 클릭하면 휴지통으로 이동합니다.",
         ],
         ui: {
           label: "Completed 섹션",
@@ -1240,17 +1256,18 @@ const MANUAL_CONTENT = {
         }
       },
       {
-        icon: "★", title: "별표(Star) & Notice",
-        desc: "항목 오른쪽의 ★ 버튼을 클릭하면 별표가 표시됩니다.",
+        icon: "★", title: "별표(Star) & Notice & PDF 내보내기",
+        desc: "항목 오른쪽의 ★ 버튼을 클릭하면 별표가 표시됩니다. Select 모드에서 ↓ PDF로 내보낼 수 있습니다.",
         tips: [
           "별표가 된 항목은 제목 앞에 금색 ★이 표시됩니다.",
-          "왼쪽 사이드바 Notice를 클릭하면 모든 폴더의 별표 항목만 모아 볼 수 있습니다.",
-          "Header는 파란 테두리가 금색으로 바뀝니다.",
-          "Text는 왼쪽 파란 세로선이 금색으로 바뀝니다.",
+          "Notice(★)를 클릭하면 모든 폴더의 별표 항목만 모아 볼 수 있습니다.",
+          "Select 버튼 → 항목 선택 → ↓ PDF 버튼을 누르면 선택 항목을 PDF로 저장합니다.",
+          "PDF는 화면에 보이는 순서대로, 제목·내용·체크박스·마감기한 포함 출력됩니다.",
+          "Delete 버튼으로 선택 항목을 일괄 삭제합니다.",
         ],
         ui: {
-          label: "별표 표시 예시",
-          items: ["★ 중요한 텍스트 노트                    ★  ×", "★ 중요한 할 일  2026.03.23  ★  ×"],
+          label: "Select 모드 툴바",
+          items: ["□ All  ↓ PDF  Delete  Cancel"],
         }
       },
       {
@@ -1260,7 +1277,7 @@ const MANUAL_CONTENT = {
           "왼쪽 하단 'Sign in with Google' 버튼으로 로그인합니다.",
           "로그인 후 ✅ Synced 표시가 나타나면 동기화 완료입니다.",
           "어느 기기 어느 브라우저에서도 동일한 데이터를 볼 수 있습니다.",
-          "❌ 표시가 나타나면 클릭해서 재로그인하세요.",
+          "❌ 표시가 나타나면 클릭해서 재로그인하세요. 로컬 데이터는 유지됩니다.",
         ],
         ui: {
           label: "로그인 상태",
@@ -1268,28 +1285,43 @@ const MANUAL_CONTENT = {
         }
       },
       {
-        icon: "📋", title: "Worklog (업무일지)",
-        desc: "사이드바 Worklog를 클릭하면 날짜·프로젝트·핵심내용·상세내용·메모를 기록할 수 있는 업무일지 화면이 열립니다.",
+        icon: "📱", title: "앱 설치 (PWA)",
+        desc: "theNOTES는 브라우저에서 PC·스마트폰 홈 화면에 앱처럼 설치해 사용할 수 있습니다.",
         tips: [
-          "+ Add 버튼으로 오늘 날짜의 새 항목을 추가합니다.",
-          "날짜 버튼을 클릭하면 날짜 선택기가 열립니다.",
-          "폴더 버튼을 클릭하면 기존 프로젝트 폴더와 연결할 수 있습니다.",
-          "↓ Excel 버튼으로 기간을 선택해 엑셀 파일로 내보냅니다.",
-          "↑ Import 버튼으로 같은 양식의 엑셀 파일을 불러올 수 있습니다.",
+          "Android Chrome: 주소창 오른쪽 설치(⊕) 아이콘 또는 메뉴 → '홈 화면에 추가'.",
+          "iPhone Safari: 하단 공유 버튼(□↑) → '홈 화면에 추가' → 추가.",
+          "PC Chrome/Edge: 주소창 오른쪽 설치 아이콘(⊕) 클릭 → 설치.",
+          "설치 후에는 브라우저 없이 별도 앱처럼 실행되며, 오프라인에서도 기본 동작합니다.",
+          "데이터는 Google Drive에 저장되므로 설치 여부와 무관하게 동기화됩니다.",
         ],
         ui: {
-          label: "Worklog 컬럼 구조",
-          items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES", "2026.03.23  현황 분석   [프로젝트]   상세 내용...   메모..."],
+          label: "설치 방법",
+          items: ["Android Chrome: ⋮ 메뉴 → 홈 화면에 추가", "iPhone Safari: □↑ → 홈 화면에 추가", "PC Chrome/Edge: 주소창 우측 ⊕ → 설치"],
+        }
+      },
+      {
+        icon: "📋", title: "Worklog (업무일지)",
+        desc: "사이드바 Worklog를 클릭하면 날짜·폴더·핵심내용·상세내용·메모를 기록할 수 있는 업무일지 화면이 열립니다.",
+        tips: [
+          "+ Add 버튼으로 오늘 날짜의 새 항목을 추가합니다.",
+          "날짜 버튼 클릭 → 날짜 선택기. 폴더 버튼 클릭 → 프로젝트 폴더 연결.",
+          "↓ Excel로 기간을 선택해 엑셀 내보내기. ↑ Import로 같은 양식 파일 가져오기.",
+          "스마트폰에서는 날짜+폴더+[D][N][+][×] 한 줄, 아래에 Key Point 표시.",
+          "[D] 버튼으로 Details, [N] 버튼으로 Notes를 팝업으로 보기/편집 가능.",
+        ],
+        ui: {
+          label: "PC 컬럼 구조",
+          items: ["DATE  FOLDER  KEY POINT  DETAILS  NOTES", "2026.03.23  [프로젝트]  현황 분석  상세 내용...  메모..."],
         }
       },
       {
         icon: "📥", title: "Excel 내보내기 / 가져오기",
         desc: "각 폴더의 노트를 Excel로 내보내거나, 같은 양식의 Excel 파일을 불러올 수 있습니다.",
         tips: [
-          "폴더에 들어간 후 상단 ↓ Excel 버튼 → 현재 폴더 전체를 xlsx로 저장합니다.",
-          "↑ Import 버튼 → xlsx 파일 선택 → 현재 폴더에 추가됩니다 (기존 데이터 유지).",
+          "폴더 상단 ↓ Excel → 현재 폴더 전체를 xlsx로 저장합니다.",
+          "↑ Import → xlsx 파일 선택 → 현재 폴더에 추가됩니다 (기존 데이터 유지).",
           "Import 양식 컬럼: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
-          "설정(⚙) → Backup → ↓ 전체 백업 버튼으로 모든 폴더를 한 번에 백업합니다.",
+          "설정(⚙) → Backup → ↓ 전체 백업으로 모든 폴더를 한 번에 백업합니다.",
         ],
         ui: {
           label: "상단 툴바",
@@ -1307,7 +1339,7 @@ const MANUAL_CONTENT = {
         ],
         ui: {
           label: "휴지통 화면",
-          items: ["□ 전체 선택                    Restore(2)  Delete(2)  Empty all", "□ 삭제된 항목  원본폴더  12일 남음   Restore  Delete"],
+          items: ["□ 전체 선택  Restore(2)  Delete(2)  Empty all", "□ 삭제된 항목  원본폴더  12일 남음  Restore  Delete"],
         }
       },
       {
@@ -1315,8 +1347,8 @@ const MANUAL_CONTENT = {
         desc: "사이드바 하단 ⚙ 버튼을 클릭하면 설정 창이 열립니다.",
         tips: [
           "Account — 로그인 계정과 동기화 상태를 확인합니다.",
-          "Backup — ↓ 전체 백업 (Excel) 버튼으로 모든 노트를 백업합니다.",
-          "Sign Out — 로그아웃합니다.",
+          "Backup — ↓ 전체 백업 (Excel) 버튼으로 모든 폴더+Worklog를 한 번에 백업합니다.",
+          "Sign Out — 로그아웃합니다 (로그아웃 전 자동 저장).",
           "문의/오류 신고: duholee79@gmail.com",
         ],
         ui: {
@@ -1339,8 +1371,9 @@ const MANUAL_CONTENT = {
           "Click a section name to rename it directly.",
           "Drag the ⠿ handle to reorder folders and notes.",
           "Use the + Add button at the bottom of the sidebar to add folders, sections, or dividers.",
+          "Notice(★), Calendar(◷), Worklog(📋), Trash(🗑), Manual(📖) are fixed bottom menu items.",
         ],
-        ui: { label: "Sidebar Structure", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"] }
+        ui: { label: "Sidebar Structure", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash  📖 Manual"] }
       },
       {
         icon: "➕", title: "Adding Notes",
@@ -1350,8 +1383,20 @@ const MANUAL_CONTENT = {
           "☐ To-do — A checkbox task. Press Enter to add the next task immediately.",
           "T Text — Rich text with tables, hidden sections, links, and attachments.",
           "If an item is focused, the + button inserts directly below it.",
+          "Use ↓ Excel to export the current folder, and ↑ Import to load from xlsx.",
         ],
-        ui: { label: "+ Menu", items: ["▬ Header","☐ To-do","T  Text"] }
+        ui: { label: "+ Menu / Top Toolbar", items: ["▬ Header","☐ To-do","T  Text","──────────────","🔍  Select  ↓ Excel  ↑ Import  [+]"] }
+      },
+      {
+        icon: "☐", title: "To-do — ⋯ Menu",
+        desc: "Click the ⋯ button on a To-do to access Due Date and Move to options.",
+        tips: [
+          "📅 Due Date — pick a date from the calendar. Shown in red below the title.",
+          "Click × next to the due date (or inside the calendar) to remove it.",
+          "📂 Move to — select a folder, then choose ✂️ Move (removes original) or 📋 Copy (keeps original).",
+          "Press Enter to add a new To-do directly below.",
+        ],
+        ui: { label: "⋯ Menu Structure", items: ["📅 Due Date  ›","📂 Move to  ›","  → Select folder: ✂️ Move / 📋 Copy"] }
       },
       {
         icon: "✅", title: "To-do & Completed",
@@ -1360,20 +1405,21 @@ const MANUAL_CONTENT = {
           "Completed items move to the Completed section at the bottom.",
           "Click ▾ Completed to expand and view them.",
           "Click ✓ again to restore an item to active.",
-          "Click × to send the item to the Trash.",
+          "Click × in Completed to send the item to the Trash.",
         ],
         ui: { label: "Completed Section", items: ["▾ Completed  3       Latest: 2026.03.23","  ✓ Finished task  2026.03.23  ×","  ✓ Another task   2026.03.22  ×"] }
       },
       {
-        icon: "★", title: "Stars & Notice",
-        desc: "Click the ★ button on any item to star it.",
+        icon: "★", title: "Stars & Notice & PDF Export",
+        desc: "Click ★ to star any item. Use Select mode to export selected items as PDF.",
         tips: [
           "Starred items show a gold ★ before their title.",
           "Click Notice in the sidebar to see all starred items across all folders.",
-          "Headers turn gold on their left border when starred.",
-          "Text items turn their blue left bar gold when starred.",
+          "Select button → select items → ↓ PDF button to export as a PDF file.",
+          "PDF preserves display order and includes full content (title, body, checkbox, due date).",
+          "Use Delete to bulk-delete selected items.",
         ],
-        ui: { label: "Star Indicators", items: ["★ Important text note             ★  ×","★ Important to-do  2026.03.23  ★  ×"] }
+        ui: { label: "Select Mode Toolbar", items: ["□ All  ↓ PDF  Delete  Cancel"] }
       },
       {
         icon: "☁️", title: "Google Drive Sync",
@@ -1382,30 +1428,42 @@ const MANUAL_CONTENT = {
           "Click 'Sign in with Google' at the bottom of the sidebar.",
           "Once signed in, ✅ Synced indicates successful synchronization.",
           "Access the same data from any device or browser.",
-          "If ❌ appears, click it to re-login and restore sync.",
+          "If ❌ appears, click it to re-login. Your local data is preserved.",
         ],
         ui: { label: "Login Status", items: ["b  bauman","   duholee79@gmail...","   ✅ Synced"] }
+      },
+      {
+        icon: "📱", title: "Install as App (PWA)",
+        desc: "theNOTES can be installed on your PC or smartphone homescreen and used like a native app.",
+        tips: [
+          "Android Chrome: tap the install (⊕) icon in the address bar or menu → 'Add to Home Screen'.",
+          "iPhone Safari: tap the Share button (□↑) → 'Add to Home Screen' → Add.",
+          "PC Chrome/Edge: click the install icon (⊕) in the address bar → Install.",
+          "Once installed, it runs without a browser UI and works offline for basic use.",
+          "Data stays synced via Google Drive regardless of how you open the app.",
+        ],
+        ui: { label: "Installation", items: ["Android Chrome: ⋮ menu → Add to Home Screen","iPhone Safari: □↑ → Add to Home Screen","PC Chrome/Edge: address bar ⊕ → Install"] }
       },
       {
         icon: "📋", title: "Worklog",
         desc: "Click Worklog in the sidebar to open the daily work journal.",
         tips: [
           "Click + Add to create a new entry for today.",
-          "Click the date pill to open the date picker.",
-          "Click the folder pill to link the entry to a project folder.",
-          "↓ Excel exports entries for a selected date range.",
-          "↑ Import loads entries from a matching Excel file.",
+          "Click the date pill to open the date picker. Click the folder pill to link to a project.",
+          "↓ Excel exports entries for a date range. ↑ Import loads from a matching xlsx.",
+          "On mobile: date + folder + [D][N][+][×] on top, Key Point below.",
+          "[D] shows Details popup, [N] shows Notes popup — tap elsewhere to close.",
         ],
-        ui: { label: "Worklog Columns", items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES","2026.03.23  Status review  [Project]  Details...  Notes..."] }
+        ui: { label: "PC Columns", items: ["DATE  FOLDER  KEY POINT  DETAILS  NOTES","2026.03.23  [Project]  Status review  Details...  Notes..."] }
       },
       {
         icon: "📥", title: "Excel Export / Import",
         desc: "Export folder notes to Excel or import from a matching Excel file.",
         tips: [
           "↓ Excel (top bar) — exports the current folder as xlsx.",
-          "↑ Import (top bar) — select an xlsx file to add to the current folder (existing data kept).",
+          "↑ Import (top bar) — select xlsx to add to current folder (existing data kept).",
           "Import columns: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
-          "Settings (⚙) → Backup → ↓ Full Backup exports everything at once.",
+          "Settings (⚙) → Backup → ↓ Full Backup exports all folders + Worklog at once.",
         ],
         ui: { label: "Top Toolbar", items: ["🔍  Select  ↓ Excel  ↑ Import  [+]"] }
       },
@@ -1418,15 +1476,15 @@ const MANUAL_CONTENT = {
           "Click Delete to permanently remove an item.",
           "Click Empty all to clear the entire Trash.",
         ],
-        ui: { label: "Trash View", items: ["□ Select all               Restore(2)  Delete(2)  Empty all","□ Deleted item  From: Work  12 days left   Restore  Delete"] }
+        ui: { label: "Trash View", items: ["□ Select all  Restore(2)  Delete(2)  Empty all","□ Deleted item  From: Work  12 days left  Restore  Delete"] }
       },
       {
         icon: "⚙️", title: "Settings",
         desc: "Click the ⚙ button at the bottom of the sidebar to open Settings.",
         tips: [
           "Account — view your login and sync status.",
-          "Backup — click ↓ Full Backup (Excel) to backup all notes.",
-          "Sign Out — signs you out of your account.",
+          "Backup — ↓ Full Backup (Excel) saves all folders + Worklog in one file.",
+          "Sign Out — signs you out (auto-saves before logout).",
           "Support: duholee79@gmail.com",
         ],
         ui: { label: "Settings Panel", items: ["⚙ Settings","ACCOUNT  bauman / duholee79@gmail.com  ✅ Synced","BACKUP  ↓ Full Backup (Excel)","DANGER ZONE  Sign Out  Delete Account"] }
@@ -1446,8 +1504,9 @@ const MANUAL_CONTENT = {
           "セクション名をクリックすると直接編集できます。",
           "⠿ ハンドルをドラッグしてフォルダやノートの順序を変更できます。",
           "サイドバー下部の + Add ボタンで新しいフォルダ・セクション・区切り線を追加します。",
+          "Notice(★), Calendar(◷), Worklog(📋), Trash(🗑), Manual(📖) は固定メニューです。",
         ],
-        ui: { label: "サイドバー構造", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"] }
+        ui: { label: "サイドバー構造", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash  📖 Manual"] }
       },
       {
         icon: "➕", title: "ノートの追加",
@@ -1457,8 +1516,20 @@ const MANUAL_CONTENT = {
           "☐ To-do — チェックボックス付きのタスク。Enterキーで次の項目を追加します。",
           "T Text — 表・隠しセクション・リンク・ファイル添付が可能なリッチテキスト。",
           "項目にフォーカスした状態で + ボタンを押すと、その直下に挿入されます。",
+          "↓ Excel で現在のフォルダをExcel保存、↑ Import でxlsxを読み込めます。",
         ],
-        ui: { label: "+ メニュー", items: ["▬ Header","☐ To-do","T  Text"] }
+        ui: { label: "+ メニュー / 上部ツールバー", items: ["▬ Header","☐ To-do","T  Text","──────────────","🔍  Select  ↓ Excel  ↑ Import  [+]"] }
+      },
+      {
+        icon: "☐", title: "To-do — ⋯ メニュー",
+        desc: "To-doの ⋯ ボタンを押すと Due Date（期限）と Move to（移動/コピー）メニューが開きます。",
+        tips: [
+          "📅 Due Date — カレンダーから期限を選択。選択後はタイトル下に赤字で表示されます。",
+          "期限横の × ボタン（またはカレンダー内の ×）で削除できます。",
+          "📂 Move to — フォルダを選択後、✂️ 移動（元データ削除）または 📋 コピー（元データ保持）を選べます。",
+          "Enter キーを押すと直下に新しい To-do が追加されます。",
+        ],
+        ui: { label: "⋯ メニュー構造", items: ["📅 Due Date  ›","📂 Move to  ›","  → フォルダ選択後: ✂️ 移動 / 📋 コピー"] }
       },
       {
         icon: "✅", title: "To-do完了 & Completed",
@@ -1467,20 +1538,21 @@ const MANUAL_CONTENT = {
           "完了した項目は下部のCompletedセクションに移動します。",
           "▾ Completedをクリックして展開すると一覧が表示されます。",
           "✓ をもう一度クリックすると未完了に戻せます。",
-          "× ボタンでゴミ箱に移動します。",
+          "Completed の × ボタンでゴミ箱に移動します。",
         ],
         ui: { label: "Completedセクション", items: ["▾ Completed  3       Latest: 2026.03.23","  ✓ 完了したタスク  2026.03.23  ×","  ✓ 別のタスク      2026.03.22  ×"] }
       },
       {
-        icon: "★", title: "スター & Notice",
-        desc: "項目右側の ★ ボタンをクリックするとスターが付きます。",
+        icon: "★", title: "スター & Notice & PDFエクスポート",
+        desc: "★ ボタンでスターを付けられます。Selectモードで選択項目をPDFに書き出せます。",
         tips: [
           "スター付き項目はタイトルの前に金色の★が表示されます。",
           "サイドバーのNoticeをクリックすると全フォルダのスター項目だけを一覧できます。",
-          "ヘッダーはスター時に左の枠線が金色になります。",
-          "テキストはスター時に左の青いバーが金色になります。",
+          "Select → 項目を選択 → ↓ PDF ボタンでPDFとして保存できます。",
+          "PDFは画面の表示順どおりに出力され、タイトル・本文・チェック・期限を含みます。",
+          "Deleteボタンで選択項目を一括削除します。",
         ],
-        ui: { label: "スター表示例", items: ["★ 重要なテキストノート              ★  ×","★ 重要なタスク  2026.03.23  ★  ×"] }
+        ui: { label: "Selectモード ツールバー", items: ["□ All  ↓ PDF  Delete  Cancel"] }
       },
       {
         icon: "☁️", title: "Google Drive同期",
@@ -1489,21 +1561,33 @@ const MANUAL_CONTENT = {
           "サイドバー下部の「Sign in with Google」ボタンでログインします。",
           "✅ Synced 表示が出たら同期完了です。",
           "どのデバイス・ブラウザからも同じデータを参照できます。",
-          "❌ が表示されたらクリックして再ログインしてください。",
+          "❌ が表示されたらクリックして再ログインしてください。ローカルデータは保持されます。",
         ],
         ui: { label: "ログイン状態", items: ["b  bauman","   duholee79@gmail...","   ✅ Synced"] }
+      },
+      {
+        icon: "📱", title: "アプリとしてインストール (PWA)",
+        desc: "theNOTES はPC・スマートフォンのホーム画面にアプリとしてインストールして使えます。",
+        tips: [
+          "Android Chrome: アドレスバーのインストール(⊕)アイコン、またはメニュー → 「ホーム画面に追加」。",
+          "iPhone Safari: 共有ボタン(□↑) → 「ホーム画面に追加」 → 追加。",
+          "PC Chrome/Edge: アドレスバー右のインストールアイコン(⊕) → インストール。",
+          "インストール後はブラウザUIなしで独立したアプリとして起動し、オフラインでも基本動作します。",
+          "データはGoogle Driveに保存されるため、インストール有無に関係なく同期されます。",
+        ],
+        ui: { label: "インストール方法", items: ["Android Chrome: ⋮ メニュー → ホーム画面に追加","iPhone Safari: □↑ → ホーム画面に追加","PC Chrome/Edge: アドレスバー右 ⊕ → インストール"] }
       },
       {
         icon: "📋", title: "Worklog（業務日誌）",
         desc: "サイドバーのWorklogをクリックすると業務日誌画面が開きます。",
         tips: [
           "+ Add ボタンで今日の日付の新しい項目を追加します。",
-          "日付ボタンをクリックするとカレンダーが開きます。",
-          "フォルダボタンでプロジェクトフォルダと紐付けられます。",
-          "↓ Excel で期間を指定してExcelファイルに書き出します。",
-          "↑ Import で同じ形式のExcelファイルを読み込めます。",
+          "日付ボタンでカレンダー、フォルダボタンでプロジェクトフォルダと紐付けられます。",
+          "↓ Excel で期間指定してExcel書き出し。↑ Import で同じ形式のxlsxを読み込み。",
+          "スマートフォンでは日付+フォルダ+[D][N][+][×]が上段、Key Pointが下段に表示されます。",
+          "[D]でDetails、[N]でNotesのポップアップが開き、他の場所をタップすると閉じます。",
         ],
-        ui: { label: "Worklog 列構成", items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES","2026.03.23  状況整理  [プロジェクト]  詳細...  メモ..."] }
+        ui: { label: "PCカラム構成", items: ["DATE  FOLDER  KEY POINT  DETAILS  NOTES","2026.03.23  [プロジェクト]  状況整理  詳細...  メモ..."] }
       },
       {
         icon: "📥", title: "Excel書き出し / 読み込み",
@@ -1512,7 +1596,7 @@ const MANUAL_CONTENT = {
           "↓ Excel（上部バー）→ 現在のフォルダをxlsxに保存します。",
           "↑ Import（上部バー）→ xlsxを選択 → 現在のフォルダに追加されます（既存データは保持）。",
           "Importの列: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
-          "設定(⚙) → Backup → ↓ 全データバックアップで一括保存できます。",
+          "設定(⚙) → Backup → ↓ 全データバックアップで全フォルダ+Worklogを一括保存できます。",
         ],
         ui: { label: "上部ツールバー", items: ["🔍  Select  ↓ Excel  ↑ Import  [+]"] }
       },
@@ -1525,15 +1609,15 @@ const MANUAL_CONTENT = {
           "Deleteで完全削除します。",
           "Empty allでゴミ箱を空にします。",
         ],
-        ui: { label: "ゴミ箱画面", items: ["□ 全選択               Restore(2)  Delete(2)  Empty all","□ 削除済み項目  元:Work  残り12日   Restore  Delete"] }
+        ui: { label: "ゴミ箱画面", items: ["□ 全選択  Restore(2)  Delete(2)  Empty all","□ 削除済み項目  元:Work  残り12日  Restore  Delete"] }
       },
       {
         icon: "⚙️", title: "設定",
         desc: "サイドバー下部の ⚙ ボタンをクリックすると設定が開きます。",
         tips: [
           "Account — ログインアカウントと同期状態を確認できます。",
-          "Backup — ↓ 全データバックアップ（Excel）で全ノートをバックアップします。",
-          "Sign Out — ログアウトします。",
+          "Backup — ↓ 全データバックアップ（Excel）で全フォルダ+Worklogをまとめて保存します。",
+          "Sign Out — ログアウトします（ログアウト前に自動保存されます）。",
           "お問い合わせ・不具合報告: duholee79@gmail.com",
         ],
         ui: { label: "設定パネル", items: ["⚙ Settings","ACCOUNT  bauman / duholee79@gmail.com  ✅ Synced","BACKUP  ↓ 全データバックアップ（Excel）","DANGER ZONE  Sign Out  Delete Account"] }
@@ -2000,6 +2084,27 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               <div style={{ marginTop:8, fontSize:11, color:"#94a3b8" }}>Made by BAUMAN</div>
               <div style={{ marginTop:6, fontSize:11, color:"#6b8bb5" }}>
                 문의/오류 신고: <a href="mailto:duholee79@gmail.com" style={{ color:"#2563eb", fontWeight:600, textDecoration:"none" }}>duholee79@gmail.com</a>
+              </div>
+            </div>
+
+            {/* PWA 설치 안내 */}
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>앱으로 설치</div>
+            <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
+              <div style={{ fontSize:12.5, color:"#166534", fontWeight:600, marginBottom:10 }}>📱 홈 화면에 앱처럼 설치할 수 있습니다</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                {[
+                  ["Android Chrome", "주소창 우측 설치(⊕) 아이콘 → 설치"],
+                  ["iPhone Safari", "하단 공유(□↑) → 홈 화면에 추가"],
+                  ["PC Chrome/Edge", "주소창 우측 설치(⊕) 아이콘 → 설치"],
+                ].map(([device, desc]) => (
+                  <div key={device} style={{ display:"flex", alignItems:"flex-start", gap:8, fontSize:12 }}>
+                    <span style={{ background:"#dcfce7", color:"#166534", borderRadius:6, padding:"2px 7px", fontWeight:700, fontSize:11, flexShrink:0, whiteSpace:"nowrap" }}>{device}</span>
+                    <span style={{ color:"#4b6fa8", lineHeight:1.5 }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop:10, fontSize:11, color:"#6b8bb5", lineHeight:1.6, borderTop:"1px solid #bbf7d0", paddingTop:8 }}>
+                설치 후에는 브라우저 없이 독립 앱으로 실행됩니다. 데이터는 Google Drive에 저장되므로 기기가 달라도 동기화됩니다.
               </div>
             </div>
 
