@@ -113,6 +113,7 @@ const NOTICE_ID = "__notice__";
 const CALENDAR_ID = "__calendar__";
 const TRASH_ID = "__trash__";
 const WORKLOG_ID = "__worklog__";
+const MANUAL_ID = "__manual__";
 const TRASH_DAYS = 30;
 
 // ─── Drag-to-reorder: data-attr + container scan ──────────
@@ -1009,6 +1010,506 @@ function CalendarView({ items, folders }) {
 }
 
 // ─── TrashView ────────────────────────────────────────────
+// ─── ManualView ───────────────────────────────────────────
+const MANUAL_CONTENT = {
+  ko: {
+    lang: "한국어",
+    title: "theNOTES 사용 가이드",
+    subtitle: "폴더·헤더·To-do·텍스트를 자유롭게 조합해 노트를 구성하고, Google Drive로 자동 동기화합니다.",
+    sections: [
+      {
+        icon: "🗂️", title: "기본 구조",
+        desc: "왼쪽 사이드바에서 폴더를 선택하면 오른쪽에 해당 폴더의 노트 목록이 표시됩니다.",
+        tips: [
+          "PROJECT / AREA / RESOURCE / ARCHIVE 섹션으로 폴더를 분류할 수 있습니다.",
+          "섹션 이름을 클릭하면 직접 수정할 수 있습니다.",
+          "⠿ 핸들을 드래그하면 폴더·노트 순서를 바꿀 수 있습니다.",
+          "사이드바 하단 + Add 버튼으로 새 폴더·섹션·구분선을 추가합니다.",
+        ],
+        ui: {
+          label: "사이드바 구조",
+          items: ["▾ PROJECT", "  ○ Work  ●", "  ○ Personal", "▾ AREA", "  ○ Health", "★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"],
+        }
+      },
+      {
+        icon: "➕", title: "노트 추가하기",
+        desc: "폴더에 들어간 후 오른쪽 상단 + 버튼을 눌러 세 가지 유형의 항목을 추가합니다.",
+        tips: [
+          "▬ Header — 항목들을 묶는 제목 구분선. 클릭해서 접고 펼 수 있습니다.",
+          "☐ To-do — 체크박스가 있는 할 일. Enter 키로 다음 항목을 바로 추가합니다.",
+          "T Text — 서식 있는 텍스트 노트. 표·숨김 섹션·링크·파일첨부 가능.",
+          "항목을 선택(포커스)한 상태에서 + 버튼을 누르면 그 아래에 삽입됩니다.",
+        ],
+        ui: {
+          label: "+ 추가 메뉴",
+          items: ["▬ Header", "☐ To-do", "T  Text"],
+        }
+      },
+      {
+        icon: "✅", title: "To-do 완료 & Completed",
+        desc: "To-do 항목의 왼쪽 체크박스를 클릭하면 완료 처리됩니다.",
+        tips: [
+          "완료된 항목은 하단 Completed 섹션으로 자동 이동됩니다.",
+          "Completed ▾ 를 클릭해 펼치면 완료 목록을 볼 수 있습니다.",
+          "✓ 버튼을 다시 클릭하면 미완료로 되돌릴 수 있습니다.",
+          "× 버튼을 클릭하면 휴지통으로 이동합니다.",
+        ],
+        ui: {
+          label: "Completed 섹션",
+          items: ["▾ Completed  3          Latest: 2026.03.23", "  ✓ 완료된 할 일  2026.03.23  ×", "  ✓ 다른 완료 항목  2026.03.22  ×"],
+        }
+      },
+      {
+        icon: "★", title: "별표(Star) & Notice",
+        desc: "항목 오른쪽의 ★ 버튼을 클릭하면 별표가 표시됩니다.",
+        tips: [
+          "별표가 된 항목은 제목 앞에 금색 ★이 표시됩니다.",
+          "왼쪽 사이드바 Notice를 클릭하면 모든 폴더의 별표 항목만 모아 볼 수 있습니다.",
+          "Header는 파란 테두리가 금색으로 바뀝니다.",
+          "Text는 왼쪽 파란 세로선이 금색으로 바뀝니다.",
+        ],
+        ui: {
+          label: "별표 표시 예시",
+          items: ["★ 중요한 텍스트 노트                    ★  ×", "★ 중요한 할 일  2026.03.23  ★  ×"],
+        }
+      },
+      {
+        icon: "☁️", title: "Google Drive 동기화",
+        desc: "Google 계정으로 로그인하면 모든 노트가 내 Google Drive에 자동 저장됩니다.",
+        tips: [
+          "왼쪽 하단 'Sign in with Google' 버튼으로 로그인합니다.",
+          "로그인 후 ✅ Synced 표시가 나타나면 동기화 완료입니다.",
+          "어느 기기 어느 브라우저에서도 동일한 데이터를 볼 수 있습니다.",
+          "❌ 표시가 나타나면 클릭해서 재로그인하세요.",
+        ],
+        ui: {
+          label: "로그인 상태",
+          items: ["b  bauman", "   duholee79@gmail...", "   ✅ Synced"],
+        }
+      },
+      {
+        icon: "📋", title: "Worklog (업무일지)",
+        desc: "사이드바 Worklog를 클릭하면 날짜·프로젝트·핵심내용·상세내용·메모를 기록할 수 있는 업무일지 화면이 열립니다.",
+        tips: [
+          "+ Add 버튼으로 오늘 날짜의 새 항목을 추가합니다.",
+          "날짜 버튼을 클릭하면 날짜 선택기가 열립니다.",
+          "폴더 버튼을 클릭하면 기존 프로젝트 폴더와 연결할 수 있습니다.",
+          "↓ Excel 버튼으로 기간을 선택해 엑셀 파일로 내보냅니다.",
+          "↑ Import 버튼으로 같은 양식의 엑셀 파일을 불러올 수 있습니다.",
+        ],
+        ui: {
+          label: "Worklog 컬럼 구조",
+          items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES", "2026.03.23  현황 분석   [프로젝트]   상세 내용...   메모..."],
+        }
+      },
+      {
+        icon: "📥", title: "Excel 내보내기 / 가져오기",
+        desc: "각 폴더의 노트를 Excel로 내보내거나, 같은 양식의 Excel 파일을 불러올 수 있습니다.",
+        tips: [
+          "폴더에 들어간 후 상단 ↓ Excel 버튼 → 현재 폴더 전체를 xlsx로 저장합니다.",
+          "↑ Import 버튼 → xlsx 파일 선택 → 현재 폴더에 추가됩니다 (기존 데이터 유지).",
+          "Import 양식 컬럼: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
+          "설정(⚙) → Backup → ↓ 전체 백업 버튼으로 모든 폴더를 한 번에 백업합니다.",
+        ],
+        ui: {
+          label: "상단 툴바",
+          items: ["🔍  Select  ↓ Excel  ↑ Import  [+]"],
+        }
+      },
+      {
+        icon: "🗑️", title: "휴지통 & 복원",
+        desc: "× 버튼으로 삭제한 항목은 30일간 휴지통에 보관됩니다.",
+        tips: [
+          "사이드바 Trash를 클릭하면 삭제된 항목 목록이 표시됩니다.",
+          "Restore 버튼으로 원래 폴더로 복원할 수 있습니다.",
+          "Delete 버튼으로 영구 삭제합니다.",
+          "Empty all 버튼으로 휴지통을 비웁니다.",
+        ],
+        ui: {
+          label: "휴지통 화면",
+          items: ["□ 전체 선택                    Restore(2)  Delete(2)  Empty all", "□ 삭제된 항목  원본폴더  12일 남음   Restore  Delete"],
+        }
+      },
+      {
+        icon: "⚙️", title: "설정",
+        desc: "사이드바 하단 ⚙ 버튼을 클릭하면 설정 창이 열립니다.",
+        tips: [
+          "Account — 로그인 계정과 동기화 상태를 확인합니다.",
+          "Backup — ↓ 전체 백업 (Excel) 버튼으로 모든 노트를 백업합니다.",
+          "Sign Out — 로그아웃합니다.",
+          "문의/오류 신고: duholee79@gmail.com",
+        ],
+        ui: {
+          label: "설정 창",
+          items: ["⚙ Settings", "ACCOUNT  bauman / duholee79@gmail.com  ✅ Synced", "BACKUP  ↓ 전체 백업 (Excel)", "DANGER ZONE  Sign Out  Delete Account"],
+        }
+      },
+    ]
+  },
+  en: {
+    lang: "English",
+    title: "theNOTES User Guide",
+    subtitle: "Combine Folders, Headers, To-dos, and Text freely, with automatic sync to Google Drive.",
+    sections: [
+      {
+        icon: "🗂️", title: "Basic Structure",
+        desc: "Select a folder in the left sidebar to see its notes in the main area.",
+        tips: [
+          "Folders are organized under PROJECT / AREA / RESOURCE / ARCHIVE sections.",
+          "Click a section name to rename it directly.",
+          "Drag the ⠿ handle to reorder folders and notes.",
+          "Use the + Add button at the bottom of the sidebar to add folders, sections, or dividers.",
+        ],
+        ui: { label: "Sidebar Structure", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"] }
+      },
+      {
+        icon: "➕", title: "Adding Notes",
+        desc: "Click the + button (top right) to add one of three item types.",
+        tips: [
+          "▬ Header — A title divider that groups items. Click to collapse/expand.",
+          "☐ To-do — A checkbox task. Press Enter to add the next task immediately.",
+          "T Text — Rich text with tables, hidden sections, links, and attachments.",
+          "If an item is focused, the + button inserts directly below it.",
+        ],
+        ui: { label: "+ Menu", items: ["▬ Header","☐ To-do","T  Text"] }
+      },
+      {
+        icon: "✅", title: "To-do & Completed",
+        desc: "Click the checkbox on a To-do to mark it complete.",
+        tips: [
+          "Completed items move to the Completed section at the bottom.",
+          "Click ▾ Completed to expand and view them.",
+          "Click ✓ again to restore an item to active.",
+          "Click × to send the item to the Trash.",
+        ],
+        ui: { label: "Completed Section", items: ["▾ Completed  3       Latest: 2026.03.23","  ✓ Finished task  2026.03.23  ×","  ✓ Another task   2026.03.22  ×"] }
+      },
+      {
+        icon: "★", title: "Stars & Notice",
+        desc: "Click the ★ button on any item to star it.",
+        tips: [
+          "Starred items show a gold ★ before their title.",
+          "Click Notice in the sidebar to see all starred items across all folders.",
+          "Headers turn gold on their left border when starred.",
+          "Text items turn their blue left bar gold when starred.",
+        ],
+        ui: { label: "Star Indicators", items: ["★ Important text note             ★  ×","★ Important to-do  2026.03.23  ★  ×"] }
+      },
+      {
+        icon: "☁️", title: "Google Drive Sync",
+        desc: "Sign in with Google to auto-save all notes to your personal Google Drive.",
+        tips: [
+          "Click 'Sign in with Google' at the bottom of the sidebar.",
+          "Once signed in, ✅ Synced indicates successful synchronization.",
+          "Access the same data from any device or browser.",
+          "If ❌ appears, click it to re-login and restore sync.",
+        ],
+        ui: { label: "Login Status", items: ["b  bauman","   duholee79@gmail...","   ✅ Synced"] }
+      },
+      {
+        icon: "📋", title: "Worklog",
+        desc: "Click Worklog in the sidebar to open the daily work journal.",
+        tips: [
+          "Click + Add to create a new entry for today.",
+          "Click the date pill to open the date picker.",
+          "Click the folder pill to link the entry to a project folder.",
+          "↓ Excel exports entries for a selected date range.",
+          "↑ Import loads entries from a matching Excel file.",
+        ],
+        ui: { label: "Worklog Columns", items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES","2026.03.23  Status review  [Project]  Details...  Notes..."] }
+      },
+      {
+        icon: "📥", title: "Excel Export / Import",
+        desc: "Export folder notes to Excel or import from a matching Excel file.",
+        tips: [
+          "↓ Excel (top bar) — exports the current folder as xlsx.",
+          "↑ Import (top bar) — select an xlsx file to add to the current folder (existing data kept).",
+          "Import columns: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
+          "Settings (⚙) → Backup → ↓ Full Backup exports everything at once.",
+        ],
+        ui: { label: "Top Toolbar", items: ["🔍  Select  ↓ Excel  ↑ Import  [+]"] }
+      },
+      {
+        icon: "🗑️", title: "Trash & Restore",
+        desc: "Items deleted with × are kept in Trash for 30 days.",
+        tips: [
+          "Click Trash in the sidebar to view deleted items.",
+          "Click Restore to return an item to its original folder.",
+          "Click Delete to permanently remove an item.",
+          "Click Empty all to clear the entire Trash.",
+        ],
+        ui: { label: "Trash View", items: ["□ Select all               Restore(2)  Delete(2)  Empty all","□ Deleted item  From: Work  12 days left   Restore  Delete"] }
+      },
+      {
+        icon: "⚙️", title: "Settings",
+        desc: "Click the ⚙ button at the bottom of the sidebar to open Settings.",
+        tips: [
+          "Account — view your login and sync status.",
+          "Backup — click ↓ Full Backup (Excel) to backup all notes.",
+          "Sign Out — signs you out of your account.",
+          "Support: duholee79@gmail.com",
+        ],
+        ui: { label: "Settings Panel", items: ["⚙ Settings","ACCOUNT  bauman / duholee79@gmail.com  ✅ Synced","BACKUP  ↓ Full Backup (Excel)","DANGER ZONE  Sign Out  Delete Account"] }
+      },
+    ]
+  },
+  ja: {
+    lang: "日本語",
+    title: "theNOTES 使い方ガイド",
+    subtitle: "フォルダ・ヘッダー・To-do・テキストを自由に組み合わせ、Google Driveへ自動同期します。",
+    sections: [
+      {
+        icon: "🗂️", title: "基本構造",
+        desc: "左サイドバーでフォルダを選択すると、右のメイン画面にノート一覧が表示されます。",
+        tips: [
+          "PROJECT / AREA / RESOURCE / ARCHIVE セクションでフォルダを整理できます。",
+          "セクション名をクリックすると直接編集できます。",
+          "⠿ ハンドルをドラッグしてフォルダやノートの順序を変更できます。",
+          "サイドバー下部の + Add ボタンで新しいフォルダ・セクション・区切り線を追加します。",
+        ],
+        ui: { label: "サイドバー構造", items: ["▾ PROJECT","  ○ Work  ●","  ○ Personal","▾ AREA","  ○ Health","★ Notice  ◷ Calendar  📋 Worklog  🗑 Trash"] }
+      },
+      {
+        icon: "➕", title: "ノートの追加",
+        desc: "フォルダに入った後、右上の + ボタンで3種類の項目を追加できます。",
+        tips: [
+          "▬ Header — 項目をまとめる見出し。クリックで折りたたみ・展開できます。",
+          "☐ To-do — チェックボックス付きのタスク。Enterキーで次の項目を追加します。",
+          "T Text — 表・隠しセクション・リンク・ファイル添付が可能なリッチテキスト。",
+          "項目にフォーカスした状態で + ボタンを押すと、その直下に挿入されます。",
+        ],
+        ui: { label: "+ メニュー", items: ["▬ Header","☐ To-do","T  Text"] }
+      },
+      {
+        icon: "✅", title: "To-do完了 & Completed",
+        desc: "To-doのチェックボックスをクリックすると完了になります。",
+        tips: [
+          "完了した項目は下部のCompletedセクションに移動します。",
+          "▾ Completedをクリックして展開すると一覧が表示されます。",
+          "✓ をもう一度クリックすると未完了に戻せます。",
+          "× ボタンでゴミ箱に移動します。",
+        ],
+        ui: { label: "Completedセクション", items: ["▾ Completed  3       Latest: 2026.03.23","  ✓ 完了したタスク  2026.03.23  ×","  ✓ 別のタスク      2026.03.22  ×"] }
+      },
+      {
+        icon: "★", title: "スター & Notice",
+        desc: "項目右側の ★ ボタンをクリックするとスターが付きます。",
+        tips: [
+          "スター付き項目はタイトルの前に金色の★が表示されます。",
+          "サイドバーのNoticeをクリックすると全フォルダのスター項目だけを一覧できます。",
+          "ヘッダーはスター時に左の枠線が金色になります。",
+          "テキストはスター時に左の青いバーが金色になります。",
+        ],
+        ui: { label: "スター表示例", items: ["★ 重要なテキストノート              ★  ×","★ 重要なタスク  2026.03.23  ★  ×"] }
+      },
+      {
+        icon: "☁️", title: "Google Drive同期",
+        desc: "Googleアカウントでログインすると全ノートが自動保存されます。",
+        tips: [
+          "サイドバー下部の「Sign in with Google」ボタンでログインします。",
+          "✅ Synced 表示が出たら同期完了です。",
+          "どのデバイス・ブラウザからも同じデータを参照できます。",
+          "❌ が表示されたらクリックして再ログインしてください。",
+        ],
+        ui: { label: "ログイン状態", items: ["b  bauman","   duholee79@gmail...","   ✅ Synced"] }
+      },
+      {
+        icon: "📋", title: "Worklog（業務日誌）",
+        desc: "サイドバーのWorklogをクリックすると業務日誌画面が開きます。",
+        tips: [
+          "+ Add ボタンで今日の日付の新しい項目を追加します。",
+          "日付ボタンをクリックするとカレンダーが開きます。",
+          "フォルダボタンでプロジェクトフォルダと紐付けられます。",
+          "↓ Excel で期間を指定してExcelファイルに書き出します。",
+          "↑ Import で同じ形式のExcelファイルを読み込めます。",
+        ],
+        ui: { label: "Worklog 列構成", items: ["DATE      KEY POINT      FOLDER      DETAILS      NOTES","2026.03.23  状況整理  [プロジェクト]  詳細...  メモ..."] }
+      },
+      {
+        icon: "📥", title: "Excel書き出し / 読み込み",
+        desc: "フォルダのノートをExcelに書き出したり、同じ形式のファイルを読み込めます。",
+        tips: [
+          "↓ Excel（上部バー）→ 現在のフォルダをxlsxに保存します。",
+          "↑ Import（上部バー）→ xlsxを選択 → 現在のフォルダに追加されます（既存データは保持）。",
+          "Importの列: Type(Header/Todo/Text), Title, Body, Done, Starred, Date",
+          "設定(⚙) → Backup → ↓ 全データバックアップで一括保存できます。",
+        ],
+        ui: { label: "上部ツールバー", items: ["🔍  Select  ↓ Excel  ↑ Import  [+]"] }
+      },
+      {
+        icon: "🗑️", title: "ゴミ箱 & 復元",
+        desc: "× で削除した項目は30日間ゴミ箱に保管されます。",
+        tips: [
+          "サイドバーのTrashをクリックすると削除済み一覧が表示されます。",
+          "Restoreで元のフォルダに復元できます。",
+          "Deleteで完全削除します。",
+          "Empty allでゴミ箱を空にします。",
+        ],
+        ui: { label: "ゴミ箱画面", items: ["□ 全選択               Restore(2)  Delete(2)  Empty all","□ 削除済み項目  元:Work  残り12日   Restore  Delete"] }
+      },
+      {
+        icon: "⚙️", title: "設定",
+        desc: "サイドバー下部の ⚙ ボタンをクリックすると設定が開きます。",
+        tips: [
+          "Account — ログインアカウントと同期状態を確認できます。",
+          "Backup — ↓ 全データバックアップ（Excel）で全ノートをバックアップします。",
+          "Sign Out — ログアウトします。",
+          "お問い合わせ・不具合報告: duholee79@gmail.com",
+        ],
+        ui: { label: "設定パネル", items: ["⚙ Settings","ACCOUNT  bauman / duholee79@gmail.com  ✅ Synced","BACKUP  ↓ 全データバックアップ（Excel）","DANGER ZONE  Sign Out  Delete Account"] }
+      },
+    ]
+  }
+};
+
+function ManualView({ isMobile }) {
+  const [lang, setLang] = useState("ko");
+  const C = MANUAL_CONTENT[lang];
+
+  // PDF 생성 (html2canvas 없이 CSS print 방식)
+  const handlePdfDownload = () => {
+    const printContent = document.getElementById("manual-print-area");
+    if (!printContent) return;
+    const w = window.open("", "_blank", "width=900,height=1200");
+    w.document.write(`
+      <!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>theNOTES Manual (${C.lang})</title>
+      <style>
+        body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #1e3a6e; line-height: 1.7; }
+        h1 { font-size: 26px; color: #2563eb; margin-bottom: 6px; }
+        .sub { font-size: 14px; color: #6b8bb5; margin-bottom: 36px; }
+        .section { margin-bottom: 32px; page-break-inside: avoid; }
+        .section-title { font-size: 17px; font-weight: 700; color: #1e3a6e; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .desc { font-size: 13.5px; color: #4b6fa8; margin-bottom: 10px; }
+        .tips li { font-size: 13px; color: #374151; margin-bottom: 5px; }
+        .ui-box { background: #f0f5ff; border-radius: 8px; padding: 12px 16px; margin-top: 10px; font-family: monospace; font-size: 12px; color: #374151; }
+        .ui-label { font-size: 11px; font-weight: 700; color: #6b8bb5; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+        .ui-item { padding: 3px 0; border-bottom: 1px solid #e0eaf8; }
+        .ui-item:last-child { border-bottom: none; }
+        hr { border: none; border-top: 1px solid #e0eaf8; margin: 28px 0; }
+        @media print { body { margin: 20px; } }
+      </style></head><body>
+      <h1>📖 ${C.title}</h1>
+      <div class="sub">${C.subtitle}</div>
+      ${C.sections.map((s, i) => `
+        ${i > 0 ? "<hr>" : ""}
+        <div class="section">
+          <div class="section-title">${s.icon} ${s.title}</div>
+          <div class="desc">${s.desc}</div>
+          <ul class="tips">${s.tips.map(t => `<li>${t}</li>`).join("")}</ul>
+          <div class="ui-box">
+            <div class="ui-label">${s.ui.label}</div>
+            ${s.ui.items.map(item => `<div class="ui-item">${item}</div>`).join("")}
+          </div>
+        </div>
+      `).join("")}
+      <hr>
+      <div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:16px">theNOTES · BAUMAN · duholee79@gmail.com</div>
+      </body></html>
+    `);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 400);
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:"#f8faff" }}>
+      {/* 헤더 */}
+      <div style={{ background:"linear-gradient(135deg,#2563eb,#1650b8)", padding: isMobile?"20px 18px 16px":"24px 40px 20px", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+          <div>
+            <div style={{ fontSize: isMobile?20:24, fontWeight:800, color:"#fff", marginBottom:4 }}>📖 {C.title}</div>
+            <div style={{ fontSize:12.5, color:"rgba(255,255,255,.7)", maxWidth:480, lineHeight:1.6 }}>{C.subtitle}</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0, flexWrap:"wrap" }}>
+            {/* 언어 선택 */}
+            <div style={{ display:"flex", gap:4 }}>
+              {[["ko","KO"],["en","EN"],["ja","JA"]].map(([l,label]) => (
+                <button key={l}
+                  style={{ padding:"6px 12px", borderRadius:8, border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700,
+                    background: lang===l ? "#fff" : "rgba(255,255,255,.15)",
+                    color: lang===l ? "#2563eb" : "rgba(255,255,255,.8)",
+                    boxShadow: lang===l ? "0 2px 8px rgba(0,0,0,.15)" : "none",
+                    transition:"all .15s" }}
+                  onClick={() => setLang(l)}>{label}</button>
+              ))}
+            </div>
+            {/* PDF 다운로드 */}
+            <button
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:8, border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:700, background:"rgba(255,255,255,.95)", color:"#2563eb", boxShadow:"0 2px 8px rgba(0,0,0,.2)" }}
+              onClick={handlePdfDownload}>
+              <span>↓</span> PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 섹션 목차 (번호 네비) */}
+      <div style={{ background:"#fff", borderBottom:"1px solid #e0eaf8", padding:"10px 40px", display:"flex", gap:6, flexWrap:"wrap", flexShrink:0, overflowX:"auto" }}>
+        {C.sections.map((s, i) => (
+          <a key={i} href={`#ms-${i}`}
+            style={{ fontSize:11.5, color:"#4b6fa8", background:"#eff6ff", borderRadius:20, padding:"3px 10px", textDecoration:"none", fontWeight:600, whiteSpace:"nowrap" }}>
+            {s.icon} {s.title}
+          </a>
+        ))}
+      </div>
+
+      {/* 본문 */}
+      <div id="manual-print-area" style={{ flex:1, overflowY:"auto", padding: isMobile?"16px":"32px 40px 60px" }}>
+        {C.sections.map((s, i) => (
+          <div key={i} id={`ms-${i}`} style={{ marginBottom:36, background:"#fff", borderRadius:14, boxShadow:"0 2px 12px rgba(15,32,68,.06)", overflow:"hidden" }}>
+            {/* 섹션 헤더 */}
+            <div style={{ background:"linear-gradient(90deg,rgba(37,99,235,.07),rgba(37,99,235,.02))", borderLeft:"4px solid #2563eb", padding:"16px 20px 12px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:22 }}>{s.icon}</span>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:700, color:"#1e3a6e" }}>{i+1}. {s.title}</div>
+                  <div style={{ fontSize:12.5, color:"#6b8bb5", marginTop:2, lineHeight:1.5 }}>{s.desc}</div>
+                </div>
+              </div>
+            </div>
+            {/* 본문 */}
+            <div style={{ padding:"14px 20px 16px", display:"flex", gap:20, flexWrap:"wrap" }}>
+              {/* Tips */}
+              <div style={{ flex:"1 1 280px", minWidth:0 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Tips</div>
+                {s.tips.map((tip, ti) => (
+                  <div key={ti} style={{ display:"flex", gap:8, marginBottom:7, fontSize:13, color:"#374151", lineHeight:1.6 }}>
+                    <span style={{ color:"#2563eb", fontWeight:700, flexShrink:0, marginTop:1 }}>•</span>
+                    <span>{tip}</span>
+                  </div>
+                ))}
+              </div>
+              {/* UI 미리보기 */}
+              <div style={{ flex:"0 0 auto", minWidth: isMobile?"100%":260 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>{s.ui.label}</div>
+                <div style={{ background:"#f0f5ff", borderRadius:10, border:"1px solid #dbeafe", overflow:"hidden" }}>
+                  <div style={{ background:"linear-gradient(90deg,#2563eb,#1a5fd4)", padding:"6px 12px" }}>
+                    <div style={{ display:"flex", gap:5 }}>
+                      {[0,1,2].map(k => <div key={k} style={{ width:8,height:8,borderRadius:"50%",background:"rgba(255,255,255,.4)" }}/>)}
+                    </div>
+                  </div>
+                  <div style={{ padding:"10px 12px" }}>
+                    {s.ui.items.map((item, ii) => (
+                      <div key={ii} style={{ fontFamily:"'SF Mono','Courier New',monospace", fontSize:11.5, color:"#1e3a6e", padding:"4px 6px", marginBottom:2, background: ii%2===0?"#e8f0fe":"transparent", borderRadius:5, lineHeight:1.5, wordBreak:"break-all" }}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {/* 푸터 */}
+        <div style={{ textAlign:"center", padding:"20px 0 10px", fontSize:11, color:"#94a3b8" }}>
+          theNOTES · BAUMAN · duholee79@gmail.com
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrashView({ items, onRestore, onPermDel, onEmpty }) {
   const [sel, setSel] = useState(new Set());
   const trash = items.filter(i => i.deletedAt);
@@ -1218,6 +1719,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             { id:CALENDAR_ID, label:"Calendar", icon:"◷",  ac:"#a5f3fc",  ic:"rgba(125,211,252,.65)" },
             { id:WORKLOG_ID,  label:"Worklog",  icon:"📋", ac:"#c4b5fd",  ic:"rgba(167,139,250,.7)" },
             { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
+            { id:MANUAL_ID,   label:"Manual",   icon:"📖", ac:"#bbf7d0",  ic:"rgba(134,239,172,.7)" },
           ].map(f => (
             <div key={f.id}
               style={{ ...NI, ...(activeFolder===f.id ? {background:"rgba(255,255,255,.12)",color:f.ac} : {color:f.ic}) }}
@@ -2535,15 +3037,17 @@ function AppInner() {
   const isCalendar  = activeFolder === CALENDAR_ID;
   const isTrash     = activeFolder === TRASH_ID;
   const isWorklog   = activeFolder === WORKLOG_ID;
-  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog;
+  const isManual    = activeFolder === MANUAL_ID;
+  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual;
   const liveItems   = items.filter(i => !i.deletedAt);
   const trashItems  = items.filter(i => !!i.deletedAt);
   const visibleItems = isNotice ? liveItems.filter(i => i.starred)
     : isCalendar ? liveItems
     : isTrash    ? trashItems
     : isWorklog  ? []
+    : isManual   ? []
     : liveItems.filter(i => i.folder === activeFolder);
-  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:folders.find(f => f.id===activeFolder);
+  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:folders.find(f => f.id===activeFolder);
 
   useEffect(() => { setItems(prev => prev.filter(i => !i.deletedAt || daysAgo(i.deletedAt) < TRASH_DAYS)); }, [activeFolder]);
 
@@ -2809,7 +3313,7 @@ function AppInner() {
       allItems={items} allWorklogs={worklogs} />
   );
 
-  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":"";
+  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":"";
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
@@ -3075,10 +3579,11 @@ function AppInner() {
         </div>
 
         {/* Content area */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
           {isCalendar && <CalendarView items={items} folders={folders} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
+          {isManual && <ManualView isMobile={isMobile} />}
           {isNotice && (
             <>
               <NoticeView items={visibleItems} folders={folders} isMobile={isMobile} onUpdate={upd} onDelete={softDel} />
