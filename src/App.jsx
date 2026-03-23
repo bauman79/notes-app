@@ -2310,13 +2310,13 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
       ))}
       {/* ── Completed section ── */}
       {doneTodos.length > 0 && (
-        <CompletedSection doneTodos={doneTodos} upd={upd} isMobile={isMobile} />
+        <CompletedSection doneTodos={doneTodos} upd={upd} softDel={softDel} isMobile={isMobile} />
       )}
     </div>
   );
 }
 
-function CompletedSection({ doneTodos, upd, isMobile }) {
+function CompletedSection({ doneTodos, upd, softDel, isMobile }) {
   const [open, setOpen] = useState(false);
   const fs = isMobile ? 14 : 13.5;
   // Most recently completed first
@@ -2361,6 +2361,12 @@ function CompletedSection({ doneTodos, upd, isMobile }) {
               {!isMobile && item.createdAt && (
                 <span style={{ fontSize:10, color:"#c0d0e4", flexShrink:0 }}>{item.createdAt}</span>
               )}
+              {/* 휴지통으로 이동 버튼 */}
+              <span
+                title="휴지통으로 이동"
+                style={{ color:"#fca5a5", fontSize:17, cursor:"pointer", lineHeight:1,
+                  padding:"0 2px", flexShrink:0, userSelect:"none" }}
+                onClick={e => { e.stopPropagation(); softDel(item.id); }}>×</span>
             </div>
           ))}
         </div>
