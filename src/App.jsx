@@ -338,10 +338,13 @@ function RichText({ html, onChange, placeholder, style }) {
   const { tb, checkSel, exec: execBase, tbRef, hide } = useFloatingToolbar(containerRef);
 
   useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== (html || "")) {
+    if (!ref.current) return;
+    // 포커스 중(타이핑 중)이면 건드리지 않음 — 입력 방해 방지
+    if (ref.current.contains(document.activeElement)) return;
+    if (ref.current.innerHTML !== (html || "")) {
       ref.current.innerHTML = html || "";
     }
-  }, []); // eslint-disable-line
+  }, [html]); // html prop 변경 시(Drive 동기화 등) 항상 반영
 
   const exec = (cmd, val) => {
     // Do NOT call focus() here — e.preventDefault() on toolbar mousedown keeps selection alive
@@ -1509,10 +1512,13 @@ function RichTableCell({ content, onChange, disabled }) {
   const [tb, setTb] = useState(null);
 
   useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== content) {
+    if (!ref.current) return;
+    // 포커스 중이면 건드리지 않음
+    if (ref.current.contains(document.activeElement)) return;
+    if (ref.current.innerHTML !== content) {
       ref.current.innerHTML = content;
     }
-  }, []); // eslint-disable-line
+  }, [content]); // content prop 변경 시 반영
 
   const checkSel = useCallback(() => {
     setTimeout(() => {
@@ -2492,7 +2498,6 @@ function AppInner() {
     setAccessToken(token);
     setUser(userInfo);
     localStorage.setItem("gtoken", token);
-    localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000)); // 58분 후 만료
     localStorage.setItem("guser", JSON.stringify(userInfo));
     try {
       const fileId = await gdriveFind(token);
@@ -2513,33 +2518,6 @@ function AppInner() {
     setTimeout(() => { isRestoring.current = false; }, 1500);
     return true;
   };
-
-  // ─── Silent token refresh (사용자 개입 없이 토큰 갱신) ───
-  const silentRefresh = useCallback(async () => {
-    try {
-      const currentUser = firebaseAuth.currentUser;
-      if (!currentUser) return null;
-      const silentProvider = new GoogleAuthProvider();
-      silentProvider.addScope("https://www.googleapis.com/auth/drive.file");
-      silentProvider.setCustomParameters({ prompt: "none" });
-      const result = await signInWithPopup(firebaseAuth, silentProvider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const newToken = credential?.accessToken;
-      if (newToken) {
-        setAccessToken(newToken);
-        localStorage.setItem("gtoken", newToken);
-        localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000));
-        setSyncStatus("saved");
-        console.log("Silent token refresh 성공");
-        return newToken;
-      }
-    } catch (e) {
-      // prompt:"none" 실패 시 → 사용자에게 재로그인 안내만 (강제 로그아웃 X)
-      console.warn("Silent refresh failed:", e.code);
-      setSyncStatus("error");
-    }
-    return null;
-  }, []);
 
   const googleLogin = async () => {
     try {
@@ -2575,40 +2553,26 @@ function AppInner() {
     }).catch(e => console.warn("Redirect result error:", e));
   }, []);
 
-  // ─── Firebase Auth state + 토큰 만료 자동 감지 ──────────
+  // ─── Firebase Auth state listener (auto token refresh) ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
       if (!fbUser) return;
-      const storedToken = localStorage.getItem("gtoken");
-      if (!storedToken) return;
-      const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
-      // 만료됐거나 5분 이내 만료 예정이면 silent refresh 시도
-      if (!expiry || Date.now() > expiry - 300000) {
-        console.log("토큰 만료 임박 — silent refresh 시도");
-        await silentRefresh();
-      } else {
+      // Get fresh Drive token
+      try {
+        const credential = await fbUser.getIdToken(true);
+        // Re-fetch OAuth token via silent re-auth if stored token expired
+        const storedToken = localStorage.getItem("gtoken");
+        if (!storedToken) return;
+        // Token still valid — just update user info
         const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
         setUser(userInfo);
         localStorage.setItem("guser", JSON.stringify(userInfo));
+      } catch (e) {
+        console.warn("Auth state error:", e);
       }
     });
     return () => unsubscribe();
-  }, [silentRefresh]);
-
-  // ─── 탭 포커스 복귀 시 토큰 만료 체크 ───────────────────
-  useEffect(() => {
-    const checkOnFocus = async () => {
-      const token = localStorage.getItem("gtoken");
-      if (!token) return;
-      const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
-      if (!expiry || Date.now() > expiry - 300000) {
-        console.log("탭 포커스: 토큰 만료 감지 — silent refresh 시도");
-        await silentRefresh();
-      }
-    };
-    window.addEventListener("focus", checkOnFocus);
-    return () => window.removeEventListener("focus", checkOnFocus);
-  }, [silentRefresh]);
+  }, []);
 
   const handleLogout = async () => {
     // ── 로그아웃 전 즉시 Drive 저장 ──
@@ -2622,7 +2586,6 @@ function AppInner() {
     }
     try { await signOut(firebaseAuth); } catch {}
     localStorage.removeItem("gtoken");
-    localStorage.removeItem("gtoken_expiry");
     localStorage.removeItem("guser");
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
@@ -2655,10 +2618,6 @@ function AppInner() {
     const savedToken = localStorage.getItem("gtoken");
     const savedUser  = localStorage.getItem("guser");
     if (!savedToken || !savedUser) return;
-    // 만료 시각 없으면 기존 토큰이므로 일단 짧게 설정 (곧 silentRefresh 시도됨)
-    if (!localStorage.getItem("gtoken_expiry")) {
-      localStorage.setItem("gtoken_expiry", String(Date.now() + 300000)); // 5분
-    }
     isRestoring.current = true; // block auto-save during restore
     setAccessToken(savedToken);
     setUser(JSON.parse(savedUser));
@@ -2706,10 +2665,8 @@ function AppInner() {
         setSyncStatus("saved");
       } catch (e) {
         if (e.message === "TOKEN_EXPIRED" || String(e).includes("401")) {
-          console.warn("토큰 만료 감지 — silent refresh 시도");
-          const newToken = await silentRefresh();
-          if (!newToken) setSyncStatus("error");
-          // refresh 성공하면 다음 save 사이클에서 자동 재시도
+          setSyncStatus("error");
+          console.warn("Token expired during save.");
         } else {
           console.error("Drive save error:", e);
           setSyncStatus("error");
