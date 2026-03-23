@@ -1573,9 +1573,9 @@ function ManualView({ isMobile }) {
       {/* 헤더 */}
       <div style={{ background:"linear-gradient(135deg,#2563eb,#1650b8)", padding: isMobile?"20px 18px 16px":"24px 40px 20px", flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-          <div>
+          <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize: isMobile?20:24, fontWeight:800, color:"#fff", marginBottom:4 }}>📖 {C.title}</div>
-            <div style={{ fontSize:12.5, color:"rgba(255,255,255,.7)", maxWidth:480, lineHeight:1.6 }}>{C.subtitle}</div>
+            <div style={{ fontSize:12.5, color:"rgba(255,255,255,.7)", lineHeight:1.6 }}>{C.subtitle}</div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0, flexWrap:"wrap" }}>
             {/* 언어 선택 */}
