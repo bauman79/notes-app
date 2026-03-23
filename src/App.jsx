@@ -337,11 +337,15 @@ function RichText({ html, onChange, placeholder, style }) {
   const containerRef = useRef(null);
   const { tb, checkSel, exec: execBase, tbRef, hide } = useFloatingToolbar(containerRef);
 
+  // html prop이 바뀔 때마다 DOM 업데이트 (Drive 동기화 등)
+  // 단, 현재 이 편집기에 포커스가 있으면(타이핑 중) 건드리지 않음
   useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== (html || "")) {
+    if (!ref.current) return;
+    if (ref.current.contains(document.activeElement)) return; // 타이핑 중 보호
+    if (ref.current.innerHTML !== (html || "")) {
       ref.current.innerHTML = html || "";
     }
-  }, []); // eslint-disable-line
+  }, [html]);
 
   const exec = (cmd, val) => {
     // Do NOT call focus() here — e.preventDefault() on toolbar mousedown keeps selection alive
@@ -1594,11 +1598,15 @@ function RichTableCell({ content, onChange, disabled }) {
   const tbRef  = useRef(null);
   const [tb, setTb] = useState(null);
 
+  // content prop이 바뀔 때마다 DOM 업데이트 (Drive 동기화 등)
+  // 포커스 중(타이핑 중)이면 건드리지 않음
   useEffect(() => {
-    if (ref.current && ref.current.innerHTML !== content) {
+    if (!ref.current) return;
+    if (ref.current.contains(document.activeElement)) return;
+    if (ref.current.innerHTML !== content) {
       ref.current.innerHTML = content;
     }
-  }, []); // eslint-disable-line
+  }, [content]);
 
   const checkSel = useCallback(() => {
     setTimeout(() => {
@@ -2486,6 +2494,7 @@ function AppInner() {
     } catch { return initWorklogs; }
   });
   const [activeFolder, setActiveFolder] = useState("f1");
+  const activeFolderRef = useRef("f1"); // 항상 최신 activeFolder 참조 (stale closure 방지)
   const [editingFN,    setEditingFN]    = useState(false);
   const [fnDraft,      setFnDraft]      = useState("");
   const [showAddMenu,  setShowAddMenu]  = useState(false);
@@ -2589,7 +2598,7 @@ function AppInner() {
   const togSel   = id => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const allSel   = visibleItems.length > 0 && selected.size === visibleItems.length;
   const togAll   = () => setSelected(allSel ? new Set() : new Set(visibleItems.map(i => i.id)));
-  const selectFolder = id => { setActiveFolder(id); setShowSidebar(false); setEditingFN(false); setSelMode(false); setSelected(new Set()); };
+  const selectFolder = id => { setActiveFolder(id); activeFolderRef.current = id; setShowSidebar(false); setEditingFN(false); setSelMode(false); setSelected(new Set()); };
   const restoreItem  = id => setItems(prev => prev.map(i => i.id===id ? {...i, deletedAt:undefined, originalFolder:undefined, originalFolderName:undefined} : i));
   const permDel      = id => setItems(prev => prev.filter(i => i.id!==id));
   const emptyTrash   = () => setItems(prev => prev.filter(i => !i.deletedAt));
@@ -2622,8 +2631,7 @@ function AppInner() {
     } catch (e) { console.error("Drive load error:", e); }
     setDataLoaded(true);
     setShowLogin(false);
-    // 로드 완료 후 1초 뒤 자동저장 재개
-    setTimeout(() => { isRestoring.current = false; }, 1500);
+    setTimeout(() => { isRestoring.current = false; }, 2500); // React 렌더링 완료 후 여유있게 해제
     return true;
   };
 
@@ -2756,7 +2764,7 @@ function AppInner() {
         }
       } finally {
         setDataLoaded(true);
-        setTimeout(() => { isRestoring.current = false; }, 1000);
+        setTimeout(() => { isRestoring.current = false; }, 2500); // React 렌더링 완료 후 여유있게 해제
       }
     })();
   }, []);
@@ -2766,6 +2774,7 @@ function AppInner() {
     if (isRestoring.current) return; // skip save during restore
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      if (isRestoring.current) return; // 타이머 대기 중 restore 시작된 경우 재확인
       setSyncStatus("saving");
       try {
         const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
@@ -2882,7 +2891,7 @@ function AppInner() {
                                     style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:9, cursor:"pointer", marginBottom:2 }}
                                     onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
                                     onMouseLeave={e => e.currentTarget.style.background="transparent"}
-                                    onClick={() => { if (folder) setActiveFolder(item.folder); setShowGlobalSearch(false); setGlobalQuery(""); }}>
+                                    onClick={() => { if (folder) selectFolder(item.folder); setShowGlobalSearch(false); setGlobalQuery(""); }}>
                                     <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, width:14 }}>
                                       {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
                                     </span>
@@ -3097,9 +3106,11 @@ function AppInner() {
               <SortableList
                 items={sortableFlat}
                 setItems={newArr => setItems(prev => {
-                  const visibleItems = prev.filter(i => !i.deletedAt && i.folder === activeFolder);
-                  const resolved = typeof newArr === 'function' ? newArr(visibleItems) : newArr;
-                  const others = prev.filter(i => i.deletedAt || i.folder !== activeFolder);
+                  // activeFolderRef.current 사용 → 빠른 폴더 전환 시 stale closure 방지
+                  const folder = activeFolderRef.current;
+                  const visibleNow = prev.filter(i => !i.deletedAt && i.folder === folder);
+                  const resolved = typeof newArr === 'function' ? newArr(visibleNow) : newArr;
+                  const others = prev.filter(i => i.deletedAt || i.folder !== folder);
                   return [...others, ...resolved];
                 })}
                 getKey={i => i.id}
