@@ -3037,6 +3037,43 @@ function CompletedSection({ doneTodos, upd, softDel, isMobile }) {
   );
 }
 
+// ─── MobileTodoTextarea ──────────────────────────────────
+// 항상 전체 내용을 표시하는 auto-resize textarea (선택 없이도 줄바꿈 표시)
+function MobileTodoTextarea({ id, value, done, fs, onUpdate, onFocus, onAddBelow }) {
+  const ref = useRef(null);
+
+  // 마운트 + value 변경 시 항상 높이 자동 조절
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }); // 의존성 없이 매 렌더마다 실행 → 항상 정확한 높이 유지
+
+  return (
+    <textarea
+      ref={ref}
+      data-todoitem={id}
+      rows={1}
+      style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none",
+        fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, resize:"none",
+        overflowY:"hidden", lineHeight:1.5, padding:0,
+        ...(done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+      value={value}
+      placeholder="Add a task..."
+      onChange={e => {
+        const el = e.target;
+        el.style.height = "auto";
+        el.style.height = el.scrollHeight + "px";
+        onUpdate({ title:e.target.value });
+      }}
+      onFocus={e => { onFocus?.(); }}
+      onClick={e => e.stopPropagation()}
+      onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+    />
+  );
+}
+
 function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddBelow, onFocus }) {
   const bp = {};
   const drag = {};
@@ -3111,30 +3148,16 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
         {item.starred && (
           <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1, marginRight:-2, pointerEvents:"none", marginTop:isMobile?3:0 }}>★</span>
         )}
-        {/* 텍스트: 모바일=textarea(자동줄바꿈), PC=input(한줄) */}
+        {/* 텍스트: 모바일=textarea(항상 전체 표시), PC=input(한줄) */}
         {isMobile ? (
-          <textarea
-            data-todoitem={item.id}
-            rows={1}
-            style={{ color:"#1e3a6e", border:"none", background:"transparent", outline:"none",
-              fontFamily:"inherit", fontSize:fs, flex:1, minWidth:0, resize:"none",
-              overflowY:"hidden", lineHeight:1.5, padding:0,
-              ...(item.done?{textDecoration:"line-through",color:"#96acc8"}:{}) }}
+          <MobileTodoTextarea
+            id={item.id}
             value={item.title}
-            placeholder="Add a task..."
-            onChange={e => {
-              // 자동 높이 조절
-              e.target.style.height = "auto";
-              e.target.style.height = e.target.scrollHeight + "px";
-              onUpdate({ title:e.target.value });
-            }}
-            onFocus={e => {
-              e.target.style.height = "auto";
-              e.target.style.height = e.target.scrollHeight + "px";
-              onFocus?.();
-            }}
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
+            done={item.done}
+            fs={fs}
+            onUpdate={onUpdate}
+            onFocus={onFocus}
+            onAddBelow={onAddBelow}
           />
         ) : (
           <input
