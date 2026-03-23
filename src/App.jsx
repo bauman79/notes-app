@@ -3532,10 +3532,80 @@ function AppInner() {
   }, [items, folders]);
   const delSel   = () => { selected.forEach(id => softDel(id)); setSelected(new Set()); setSelMode(false); };
   const shareSel = () => {
-    const txt = [...selected].map(id => items.find(i => i.id===id)?.title||"").join("\n");
-    if (navigator.share) navigator.share({ title:"Notes", text:txt });
-    else { navigator.clipboard?.writeText(txt); alert("Copied to clipboard."); }
-    setSelected(new Set()); setSelMode(false);
+    // 화면 표시 순서대로 정렬 (visibleItems 순서 기준)
+    const orderedIds = visibleItems.map(i => i.id).filter(id => selected.has(id));
+    const selItems = orderedIds.map(id => items.find(i => i.id === id)).filter(Boolean);
+    if (!selItems.length) return;
+
+    const folderName = activeF?.name || "Notes";
+    const today = mkDate();
+
+    // HTML 생성
+    const itemsHtml = selItems.map(item => {
+      if (item.type === T.HEADER) {
+        return `
+          <div style="margin:18px 0 8px;padding:8px 14px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;">
+            <span style="font-size:15px;font-weight:700;color:#1a3a78;">${item.title||""}</span>
+          </div>`;
+      }
+      if (item.type === T.TODO) {
+        const check = item.done
+          ? `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:#2563eb;text-align:center;line-height:16px;color:#fff;font-size:11px;font-weight:700;margin-right:8px;flex-shrink:0;">✓</span>`
+          : `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;border:1.5px solid #c2d0e8;margin-right:8px;flex-shrink:0;"></span>`;
+        const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
+        const due = item.dueDate ? `<span style="color:#ef4444;font-size:11px;margin-left:8px;">📅 ${item.dueDate}</span>` : "";
+        return `
+          <div style="display:flex;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f4fa;">
+            ${check}
+            <span style="font-size:13.5px;color:${item.done?"#96acc8":"#1e3a6e"};${item.done?"text-decoration:line-through;":""}flex:1;">${star}${item.title||""}${due}</span>
+            <span style="font-size:10px;color:#a8bcd8;margin-left:8px;white-space:nowrap;">${item.createdAt||""}</span>
+          </div>`;
+      }
+      if (item.type === T.TEXT) {
+        const body = item.body ? `<div style="font-size:12.5px;color:#374151;line-height:1.7;margin-top:4px;">${item.body}</div>` : "";
+        const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
+        return `
+          <div style="margin-bottom:12px;padding:10px 14px;background:#fff;border-radius:8px;border-left:3px solid ${item.starred?"#f59e0b":"#2563eb"};">
+            <div style="font-size:14px;font-weight:600;color:#0f2044;margin-bottom:4px;">${star}${item.title||""}</div>
+            ${body}
+          </div>`;
+      }
+      return "";
+    }).join("");
+
+    const w = window.open("", "_blank", "width=794,height=1000");
+    w.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>${folderName} — ${today}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif; color: #1e3a6e; padding: 40px 48px; max-width: 700px; margin: 0 auto; }
+        .header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 24px; }
+        .folder { font-size: 20px; font-weight: 800; color: #2563eb; }
+        .meta { font-size: 11px; color: #94a3b8; text-align: right; }
+        .count { font-size: 11px; color: #6b8bb5; margin-top: 2px; }
+        .footer { margin-top: 32px; padding-top: 10px; border-top: 1px solid #e0eaf8; font-size: 10px; color: #94a3b8; text-align: center; }
+        @media print {
+          body { padding: 20px 28px; }
+          @page { margin: 16mm 14mm; size: A4; }
+        }
+      </style>
+    </head><body>
+      <div class="header">
+        <div>
+          <div class="folder">📁 ${folderName}</div>
+          <div class="count">${selItems.length}개 항목</div>
+        </div>
+        <div class="meta">theNOTES<br>${today}</div>
+      </div>
+      ${itemsHtml}
+      <div class="footer">theNOTES · BAUMAN · Generated ${today}</div>
+      <script>window.onload = () => { setTimeout(() => window.print(), 300); }<\/script>
+    </body></html>`);
+    w.document.close();
+
+    setSelected(new Set());
+    setSelMode(false);
   };
   const togSel   = id => setSelected(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const allSel   = visibleItems.length > 0 && selected.size === visibleItems.length;
@@ -3865,7 +3935,7 @@ function AppInner() {
                       </div>
                       {selected.size > 0 && (
                         <>
-                          <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                          <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>↓ PDF</button>
                           <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                         </>
                       )}
@@ -3982,7 +4052,7 @@ function AppInner() {
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     {selected.size > 0 && (
                       <>
-                        <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>Share</button>
+                        <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>↓ PDF</button>
                         <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"6px 10px", fontSize:12, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>Delete</button>
                       </>
                     )}
