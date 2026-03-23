@@ -618,10 +618,10 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
     setTimeout(() => { listRef.current?.querySelector(`[data-ym="${ym}"]`)?.scrollIntoView({behavior:"smooth",block:"start"}); }, 100);
   };
 
-  // colGrid: cb | date | keyPoint | project | details | notes | actions
+  // colGrid: cb | date | folder | keyPoint | details | notes | actions
   const colGrid = isMobile
-    ? "20px 80px 1fr 100px 28px"
-    : "20px 90px 1fr 110px 0.9fr 1.6fr 28px";
+    ? null  // 모바일은 커스텀 flex 레이아웃 사용
+    : "20px 95px 115px 1fr 0.9fr 1.6fr 28px";
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}} onClick={()=>{ setShowFilter(false); setShowNav(false); }}>
@@ -735,12 +735,14 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
                 <div style={{flex:1,height:1,background:"rgba(37,99,235,.1)"}}/>
                 <span style={{fontSize:11,color:"#94a3b8",flexShrink:0}}>{grouped[ym].length}</span>
               </div>
-              {/* Column headers */}
-              <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",marginBottom:2}}>
-                <div/><div>Date</div><div>Key Point</div><div>Folder</div>
-                {!isMobile&&<><div>Details</div><div>Notes</div></>}
-                <div/>
-              </div>
+              {/* Column headers — PC only */}
+              {!isMobile && (
+                <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,padding:"2px 8px",fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",marginBottom:2}}>
+                  <div/><div>Date</div><div>Folder</div><div>Key Point</div>
+                  <div>Details</div><div>Notes</div>
+                  <div/>
+                </div>
+              )}
               {sortedDays.map(date=>(
                 <div key={date}>
                   {dayG[date].map((w,wi)=>(
@@ -764,67 +766,168 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
 
 // ─── WRow ─────────────────────────────────────────────────
 function WRow({ entry, wi, isMobile, colGrid, folders, isSel, onToggleSel, onUpdate, onDelete, onAddBelow }) {
-  const [showDP, setShowDP] = useState(false);
-  const [showFP, setShowFP] = useState(false);
+  const [showDP,   setShowDP]   = useState(false);
+  const [showFP,   setShowFP]   = useState(false);
+  const [popupType, setPopupType] = useState(null); // 'D' | 'N' | null
+  const [popupPos,  setPopupPos]  = useState({ top:0, left:0 });
+  const dBtnRef = useRef(null);
+  const nBtnRef = useRef(null);
   const selFolder = folders.find(f => f.name===entry.project);
 
+  // D/N 팝업 열기
+  const openPopup = (type, ref) => {
+    if (!ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    setPopupPos({ top: r.bottom + 4, left: Math.max(8, r.right - 260) });
+    setPopupType(v => v === type ? null : type);
+  };
+
+  // 외부 클릭 시 팝업 닫기
+  useEffect(() => {
+    if (!popupType) return;
+    const close = e => {
+      if (dBtnRef.current?.contains(e.target)) return;
+      if (nBtnRef.current?.contains(e.target)) return;
+      setPopupType(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("touchstart", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
+    };
+  }, [popupType]);
+
+  const datePill = (
+    <div style={{position:"relative"}}>
+      {wi===0
+        ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"Date"}</div>
+        : <div style={{...wDatePill,opacity:.2,pointerEvents:"none",fontSize:11}}>{entry.date}</div>
+      }
+      {showDP && <>
+        <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowDP(false)} />
+        <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>
+      </>}
+    </div>
+  );
+
+  const folderPill = (
+    <div style={{position:"relative"}}>
+      <div style={{...wDatePill,
+        color: selFolder?"#1650b8":"#94a3b8",
+        borderColor: selFolder?"#bfdbfe":"#e8eef8",
+        background: selFolder?"#eff6ff":"#f8faff",
+        overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+        maxWidth: isMobile ? 100 : "100%"}}
+        onClick={()=>setShowFP(v=>!v)}>
+        {selFolder ? entry.project : "Folder"}
+      </div>
+      {showFP && (<>
+        <div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setShowFP(false)} />
+        <div style={{position:"absolute",zIndex:500,background:"#fff",borderRadius:12,
+          boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",
+          top:"100%",left:0,marginTop:4,minWidth:150,overflow:"hidden"}}>
+          <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Select folder</div>
+          {entry.project && (
+            <div style={{padding:"8px 14px",fontSize:12,color:"#e53e3e",cursor:"pointer",fontWeight:500,borderBottom:"1px solid #f0f4fa"}}
+              onMouseDown={()=>{onUpdate({project:""});setShowFP(false);}}>× Clear</div>
+          )}
+          {folders.map(f=>(
+            <div key={f.id}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",fontSize:13,cursor:"pointer",fontWeight:500,
+                color:entry.project===f.name?"#2563eb":"#1e3a6e",
+                background:entry.project===f.name?"#eff6ff":"transparent"}}
+              onMouseDown={()=>{onUpdate({project:f.name});setShowFP(false);}}>
+              {entry.project===f.name && <span style={{fontSize:11}}>✓ </span>}{f.name}
+            </div>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+
+  // D/N 팝업 (portal)
+  const popup = popupType && createPortal(
+    <div
+      style={{ position:"fixed", top:popupPos.top, left:popupPos.left,
+        background:"#fff", borderRadius:12, boxShadow:"0 8px 28px rgba(15,32,68,.18)",
+        border:"1px solid #e0eaf8", zIndex:9999, width:260, overflow:"hidden",
+        fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif" }}
+      onMouseDown={e=>e.stopPropagation()}
+      onTouchStart={e=>e.stopPropagation()}>
+      <div style={{padding:"10px 14px 6px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase",borderBottom:"1px solid #f0f4fa"}}>
+        {popupType === 'D' ? 'Details' : 'Notes'}
+      </div>
+      <textarea
+        style={{width:"100%",minHeight:100,maxHeight:200,border:"none",outline:"none",
+          fontFamily:"inherit",fontSize:13,color:"#1e3a6e",lineHeight:1.6,
+          padding:"10px 14px",resize:"vertical",boxSizing:"border-box",background:"transparent"}}
+        placeholder={popupType === 'D' ? "Details..." : "Notes..."}
+        value={popupType === 'D' ? (entry.details||"") : (entry.notes||"")}
+        onChange={e => onUpdate(popupType==='D' ? {details:e.target.value} : {notes:e.target.value})}
+        autoFocus
+      />
+    </div>,
+    document.body
+  );
+
+  // ── 모바일 레이아웃 ──────────────────────────────────────
+  if (isMobile) {
+    const hasD = !!(entry.details && entry.details.trim());
+    const hasN = !!(entry.notes && entry.notes.trim());
+    return (
+      <div style={{background:isSel?"#eff6ff":"#fff",borderRadius:10,padding:"8px 8px 6px",
+        marginBottom:4, boxShadow:isSel?"0 0 0 1.5px #93c5fd":"0 1px 3px rgba(15,32,68,.05)"}}>
+        {/* 윗줄: cb + date + folder + D/N/+/× 버튼 */}
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+          <div style={{...wCB,...(isSel?wCBOn:{}),flexShrink:0}} onClick={onToggleSel}>{isSel&&"✓"}</div>
+          {datePill}
+          {folderPill}
+          <div style={{flex:1}}/>
+          {/* D 버튼 */}
+          <button ref={dBtnRef}
+            style={{...wRowBtn,
+              background: hasD ? (popupType==='D'?"#2563eb":"#eff6ff") : "#f8faff",
+              color: hasD ? (popupType==='D'?"#fff":"#2563eb") : "#c2d0e8",
+              border: hasD?"1px solid #bfdbfe":"1px solid #e8eef8",
+              fontWeight:700, fontSize:11}}
+            onClick={()=>openPopup('D',dBtnRef)}
+            title="Details">D</button>
+          {/* N 버튼 */}
+          <button ref={nBtnRef}
+            style={{...wRowBtn,
+              background: hasN ? (popupType==='N'?"#2563eb":"#eff6ff") : "#f8faff",
+              color: hasN ? (popupType==='N'?"#fff":"#2563eb") : "#c2d0e8",
+              border: hasN?"1px solid #bfdbfe":"1px solid #e8eef8",
+              fontWeight:700, fontSize:11}}
+            onClick={()=>openPopup('N',nBtnRef)}
+            title="Notes">N</button>
+          <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
+          <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
+        </div>
+        {/* 아랫줄: keypoint (자동 줄바꿈) */}
+        <div style={{paddingLeft:26}}>
+          <input style={{...wCell,fontSize:13,width:"100%"}}
+            value={entry.keyPoint} placeholder="Key point..."
+            onChange={e=>onUpdate({keyPoint:e.target.value})}/>
+        </div>
+        {popup}
+      </div>
+    );
+  }
+
+  // ── PC 레이아웃 ────────────────────────────────────────
   return (
     <div style={{display:"grid",gridTemplateColumns:colGrid,gap:4,alignItems:"start",
       background:isSel?"#eff6ff":"#fff",borderRadius:10,padding:"7px 8px",marginBottom:3,
       boxShadow:isSel?"0 0 0 1.5px #93c5fd":"0 1px 3px rgba(15,32,68,.05)"}}>
-      {/* 체크박스 — 상단 정렬 맞춤 */}
       <div style={{...wCB,...(isSel?wCBOn:{}),marginTop:2}} onClick={onToggleSel}>{isSel&&"✓"}</div>
-
-      {/* Date pill */}
-      <div style={{position:"relative"}}>
-        {wi===0
-          ? <div style={wDatePill} onClick={()=>setShowDP(v=>!v)}>{entry.date||"Date"}</div>
-          : <div style={{...wDatePill,opacity:.2,pointerEvents:"none",fontSize:11}}>{entry.date}</div>
-        }
-        {showDP && <>
-          <div style={{position:"fixed",inset:0,zIndex:399}} onClick={()=>setShowDP(false)} />
-          <DatePicker value={entry.date} onChange={d=>{onUpdate({date:d});setShowDP(false);}} onClose={()=>setShowDP(false)}/>
-        </>}
-      </div>
-
+      {datePill}
+      {folderPill}
       {/* Key point */}
-      <input style={wCell} value={entry.keyPoint} placeholder="Key point..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
-
-      {/* Folder picker pill */}
-      <div style={{position:"relative"}}>
-        <div style={{...wDatePill,
-          color: selFolder?"#1650b8":"#94a3b8",
-          borderColor: selFolder?"#bfdbfe":"#e8eef8",
-          background: selFolder?"#eff6ff":"#f8faff",
-          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
-          onClick={()=>setShowFP(v=>!v)}>
-          {selFolder ? entry.project : "Folder"}
-        </div>
-        {showFP && (<>
-          <div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setShowFP(false)} />
-          <div style={{position:"absolute",zIndex:500,background:"#fff",borderRadius:12,
-            boxShadow:"0 6px 24px rgba(15,32,68,.16)",border:"1px solid #e0eaf8",
-            top:"100%",left:0,marginTop:4,minWidth:150,overflow:"hidden"}}>
-            <div style={{padding:"6px 12px 4px",fontSize:10,fontWeight:700,color:"#94a3b8",letterSpacing:"1px",textTransform:"uppercase"}}>Select folder</div>
-            {entry.project && (
-              <div style={{padding:"8px 14px",fontSize:12,color:"#e53e3e",cursor:"pointer",fontWeight:500,borderBottom:"1px solid #f0f4fa"}}
-                onMouseDown={()=>{onUpdate({project:""});setShowFP(false);}}>× Clear</div>
-            )}
-            {folders.map(f=>(
-              <div key={f.id}
-                style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",fontSize:13,cursor:"pointer",fontWeight:500,
-                  color:entry.project===f.name?"#2563eb":"#1e3a6e",
-                  background:entry.project===f.name?"#eff6ff":"transparent"}}
-                onMouseDown={()=>{onUpdate({project:f.name});setShowFP(false);}}>
-                {entry.project===f.name && <span style={{fontSize:11}}>✓ </span>}{f.name}
-              </div>
-            ))}
-          </div>
-        </>)}
-      </div>
-
-      {!isMobile && <input style={{...wCell,fontSize:13,display:"block",verticalAlign:"top"}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>}
-      {!isMobile && <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:38,maxHeight:120,lineHeight:1.5,padding:"4px",display:"block",verticalAlign:"top",boxSizing:"border-box"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>}
+      <input style={{...wCell,fontSize:13,display:"block"}} value={entry.keyPoint} placeholder="Key point..." onChange={e=>onUpdate({keyPoint:e.target.value})}/>
+      <input style={{...wCell,fontSize:13,display:"block",verticalAlign:"top"}} value={entry.details} placeholder="Details..." onChange={e=>onUpdate({details:e.target.value})}/>
+      <textarea style={{...wCell,fontSize:12.5,resize:"none",overflowY:"auto",minHeight:38,maxHeight:120,lineHeight:1.5,padding:"4px",display:"block",verticalAlign:"top",boxSizing:"border-box"}} value={entry.notes} placeholder="Notes..." onChange={e=>onUpdate({notes:e.target.value})}/>
       <div style={{display:"flex",flexDirection:"column",gap:2}}>
         <button style={wRowBtn} onClick={onAddBelow} title="Add row">＋</button>
         <button style={{...wRowBtn,color:"#fca5a5"}} onClick={onDelete} title="Delete">×</button>
