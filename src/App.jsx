@@ -26,7 +26,7 @@ async function gdriveFind(token) {
   const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: "Bearer " + token } }
   );
   if (res.status === 401) throw new Error("TOKEN_EXPIRED");
   const data = await res.json();
@@ -36,7 +36,7 @@ async function gdriveFind(token) {
 async function gdriveRead(token, fileId) {
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    { headers: { Authorization: "Bearer " + token } }
   );
   if (res.status === 401) throw new Error("TOKEN_EXPIRED");
   if (!res.ok) return null;
@@ -50,7 +50,7 @@ async function gdriveSave(token, data, existingFileId) {
       `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
       {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
         body,
       }
     );
@@ -63,7 +63,7 @@ async function gdriveSave(token, data, existingFileId) {
     form.append("file", new Blob([body], { type: "application/json" }));
     const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: "Bearer " + token },
       body: form,
     });
     if (res.status === 401) throw new Error("TOKEN_EXPIRED");
@@ -81,7 +81,7 @@ async function gdriveUploadFile(token, file) {
   form.append("file", file);
   const res = await fetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType",
-    { method:"POST", headers:{ Authorization:`Bearer ${token}` }, body:form }
+    { method:"POST", headers:{ Authorization:"Bearer " + token }, body:form }
   );
   if (res.status === 401) throw new Error("TOKEN_EXPIRED");
   if (!res.ok) throw new Error("Upload failed");
@@ -124,7 +124,7 @@ async function gcalFetch(token, timeMin, timeMax) {
     orderBy: "startTime",
   });
   const r = await fetch(`${GCAL_BASE}/events?${params}`, {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: "Bearer " + token }
   });
   if (r.status === 401) throw new Error("TOKEN_EXPIRED");
   if (r.status === 403) throw new Error("CALENDAR_PERMISSION");  // Calendar scope 없음
@@ -142,7 +142,7 @@ async function gcalCreateEvent(token, { title, date, description="" }) {
   };
   const r = await fetch(`${GCAL_BASE}/events`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (r.status === 401) throw new Error("TOKEN_EXPIRED");
@@ -153,7 +153,7 @@ async function gcalCreateEvent(token, { title, date, description="" }) {
 async function gcalUpdateEvent(token, eventId, patch) {
   const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
     method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
   if (r.status === 401) throw new Error("TOKEN_EXPIRED");
@@ -164,7 +164,7 @@ async function gcalUpdateEvent(token, eventId, patch) {
 async function gcalDeleteEvent(token, eventId) {
   const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: "Bearer " + token },
   });
   if (r.status === 401) throw new Error("TOKEN_EXPIRED");
   if (!r.ok && r.status !== 204) throw new Error(`gcal delete ${r.status}`);
@@ -515,7 +515,7 @@ function TodoDatePicker({ value, onChange, onClear }) {
   const fd  = (y,m) => new Date(y,m,1).getDay();
   const pad = n => String(n).padStart(2,"0");
   const cells = [...Array(fd(cur.y,cur.m)).fill(null), ...Array(dim(cur.y,cur.m)).fill(0).map((_,i)=>i+1)];
-  const isSel = d => value === `${cur.y}.${pad(cur.m+1)}.${pad(d)}`;
+  const isSel = d => value === cur.y+"."+pad(cur.m+1)+"."+pad(d);
   const today = new Date();
   const isToday = d => today.getFullYear()===cur.y && today.getMonth()===cur.m && today.getDate()===d;
   const PB = { background:"none", border:"none", fontSize:16, cursor:"pointer", color:"#6b8bb5", padding:"2px 6px", borderRadius:6, fontFamily:"inherit" };
@@ -544,7 +544,7 @@ function TodoDatePicker({ value, onChange, onClear }) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:1 }}>
         {cells.map((d,i) => (
           <div key={i}
-            onClick={() => d && onChange(`${cur.y}.${pad(cur.m+1)}.${pad(d)}`)}
+            onClick={() => d && onChange(cur.y+"."+pad(cur.m+1)+"."+pad(d))}
             style={{ textAlign:"center", fontSize:11.5, padding:"4px 0", borderRadius:5,
               cursor:d?"pointer":"default",
               background: isSel(d)?"#2563eb": isToday(d)?"#eff6ff":"transparent",
@@ -566,7 +566,7 @@ function DatePicker({ value, onChange, onClose }) {
   const fd  = (y,m) => new Date(y,m,1).getDay();
   const pad = n => String(n).padStart(2,"0");
   const cells = [...Array(fd(cur.y,cur.m)).fill(null), ...Array(dim(cur.y,cur.m)).fill(0).map((_,i)=>i+1)];
-  const isSel = d => value === `${cur.y}.${pad(cur.m+1)}.${pad(d)}`;
+  const isSel = d => value === cur.y+"."+pad(cur.m+1)+"."+pad(d);
   const PB = { background:"none", border:"none", fontSize:18, cursor:"pointer", color:"#6b8bb5", padding:"2px 8px", borderRadius:6, fontFamily:"inherit" };
   return (
     <div style={{ position:"absolute", zIndex:600, background:"#fff", borderRadius:14, boxShadow:"0 8px 32px rgba(15,32,68,.18)", padding:16, width:240, top:"100%", left:0, marginTop:4, border:"1px solid #e0eaf8" }}>
@@ -581,7 +581,7 @@ function DatePicker({ value, onChange, onClose }) {
         ))}
         {cells.map((d, i) => (
           <div key={i}
-            onClick={() => d && onChange(`${cur.y}.${pad(cur.m+1)}.${pad(d)}`) && onClose()}
+            onClick={() => d && onChange(cur.y+"."+pad(cur.m+1)+"."+pad(d)) && onClose()}
             style={{ textAlign:"center", fontSize:12, padding:"5px 0", borderRadius:6, cursor:d?"pointer":"default",
               background:isSel(d)?"#2563eb":"transparent", color:isSel(d)?"#fff":d?"#1e3a6e":"transparent", fontWeight:isSel(d)?700:400 }}>
             {d || ""}
@@ -692,7 +692,7 @@ function WorklogChart({ worklogs, folders }) {
                   <span style={{fontSize:11,color:"#6b8bb5",fontWeight:600,flexShrink:0}}>{cnt}회</span>
                 </div>
                 <div style={{height:8,background:"#f0f4fa",borderRadius:4,overflow:"hidden"}}>
-                  <div style={{height:"100%",width:`${(cnt/maxVal)*100}%`,background:COLORS[i%COLORS.length],borderRadius:4,transition:"width .3s"}}/>
+                  <div style={{height:"100%",width:((cnt/maxVal)*100)+"%",background:COLORS[i%COLORS.length],borderRadius:4,transition:"width .3s"}}/>
                 </div>
               </div>
           ))}
@@ -707,7 +707,7 @@ function WorklogChart({ worklogs, folders }) {
               const h = Math.max(8, (cnt/maxDate)*60);
               return (
                 <div key={date} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                  <div title={`${date}: ${cnt}개`}
+                  <div title={date + ": " + cnt + "개"}
                     style={{width:"100%",height:h,borderRadius:3,
                       background:cnt===0?"#f0f4fa":COLORS[0],
                       opacity:cnt===0?1:0.3+0.7*(cnt/maxDate),
@@ -759,7 +759,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
     ? "All"
     : filterFolders.size === 1
       ? [...filterFolders][0]
-      : `${filterFolders.size} selected`;
+      : filterFolders.size + " selected";
 
   const q = search.trim().toLowerCase();
   const filtered = worklogs.filter(w => {
@@ -875,7 +875,7 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
                 })).filter(r => r.date || r.keyPoint || r.details);
                 if (!newEntries.length) { alert("가져올 데이터가 없습니다.\n열 이름: Date, Project, Key Point, Details, Notes"); return; }
                 setWorklogs(prev => [...prev, ...newEntries]);
-                alert(`${newEntries.length}개 항목을 가져왔습니다.`);
+                alert(newEntries.length+"개 항목을 가져왔습니다.");
               } catch(err) {
                 alert("파일을 읽을 수 없습니다: " + err.message);
               }
@@ -1211,8 +1211,8 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
   const nextMonth = () => { if (curMonth === 11) { setCurYear(y=>y+1); setCurMonth(0); } else setCurMonth(m=>m+1); };
 
   // 날짜 유틸
-  const ymStr = `${curYear}.${pad2(curMonth+1)}`;
-  const todayStr = `${now.getFullYear()}.${pad2(now.getMonth()+1)}.${pad2(now.getDate())}`;
+  const ymStr = curYear+"."+pad2(curMonth+1);
+  const todayStr = now.getFullYear()+"."+pad2(now.getMonth()+1)+"."+pad2(now.getDate());
   const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
   const firstDow = new Date(curYear, curMonth, 1).getDay(); // 0=Sun
   const allDays = [...Array(firstDow).fill(null), ...Array(daysInMonth).fill(0).map((_,i)=>i+1)];
@@ -1241,7 +1241,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
     const d = ev.start?.date || ev.start?.dateTime?.slice(0,10);
     if (!d) return;
     const [y,m,day] = d.split("-");
-    const key = `${y}.${m}.${day}`;
+    const key = y+"."+m+"."+day;
     if (!gcalByDay[key]) gcalByDay[key] = [];
     gcalByDay[key].push(ev);
   });
@@ -1265,7 +1265,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
     if (!newEventTitle.trim() || !selectedDay || !accessToken) return;
     const [y,m,d] = selectedDay.split(".");
     try {
-      const ev = await gcalCreateEvent(accessToken, { title:newEventTitle.trim(), date:`${y}-${m}-${d}` });
+      const ev = await gcalCreateEvent(accessToken, { title:newEventTitle.trim(), date:y+"-"+m+"-"+d });
       setGcalEvents(prev=>[...prev, ev]);
       setNewEventTitle(""); setShowNewEvent(false);
     } catch(e) { alert("Google Calendar 이벤트 생성 실패: " + e.message); }
@@ -1292,8 +1292,8 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
   };
 
   const dayCell = (day) => {
-    if (!day) return <td key={`e-${Math.random()}`} style={{border:"1px solid #e0eaf8",background:"#f8faff",minWidth:90,height:80}}/>;
-    const key = `${curYear}.${pad2(curMonth+1)}.${pad2(day)}`;
+    if (!day) return <td key={"e-" + Math.random()} style={{border:"1px solid #e0eaf8",background:"#f8faff",minWidth:90,height:80}}></td>;
+    const key = curYear+"."+pad2(curMonth+1)+"."+pad2(day);
     const isToday = key === todayStr;
     const isSelected = key === selectedDay;
     const gcalEvts = gcalByDay[key] || [];
@@ -1319,7 +1319,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
           }}>{day}</span>
           {(gcalEvts.length>0||hasDue) && (
             <span style={{fontSize:9,color:"#6b7280"}}>
-              {gcalEvts.length>0&&`G${gcalEvts.length}`}
+              {gcalEvts.length>0&&("G"+gcalEvts.length)}
               {hasDue&&" 📅"}
             </span>
           )}
@@ -1364,7 +1364,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
         <button style={{...tbBtn}} onClick={nextMonth}>›</button>
         <button style={{...tbBtn,background: now.getFullYear()===curYear&&now.getMonth()===curMonth?"#eff6ff":"#f5f8ff"}}
           onClick={()=>{setCurYear(now.getFullYear());setCurMonth(now.getMonth());}}>Today</button>
-        <div style={{flex:1}}/>
+        <div style={{flex:1}}></div>
         {gcalLoading && <span style={{fontSize:11,color:"#6b8bb5"}}>📅 로딩 중...</span>}
         {gcalError === "CALENDAR_PERMISSION" && (
           <span style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>
@@ -1421,7 +1421,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
                   <tr key={ri}>
                     {allDays.slice(ri*7,ri*7+7).map((d,ci)=>dayCell(d))}
                     {allDays.slice(ri*7,ri*7+7).length<7 && [...Array(7-allDays.slice(ri*7,ri*7+7).length)].map((_,i)=>(
-                      <td key={"e"+i} style={{border:"1px solid #e0eaf8",background:"#f8faff"}}/>
+                      <td key={"e"+i} style={{border:"1px solid #e0eaf8",background:"#f8faff"}}></td>
                     ))}
                   </tr>
                 ))}
@@ -1455,7 +1455,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
                     </div>
                   ))}
                   {n.filter(i=>!i._isDue).map(i=>(
-                    <div key={i.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:8,padding:"7px 12px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:`3px solid ${i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6"}`}}>
+                    <div key={i.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:8,padding:"7px 12px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:(i.type===T.TODO?"3px solid #059669":i.type===T.HEADER?"3px solid #2563eb":"3px solid #8b5cf6")}}>
                       <span style={{fontSize:11,color:i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6",fontWeight:700}}>
                         {i.type===T.TODO?"☐":i.type===T.HEADER?"▬":"T"}
                       </span>
@@ -1511,7 +1511,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
               {/* theNOTES 노트 */}
               {selDayNotes.length>0 && <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:4,marginTop:8}}>Notes</div>}
               {selDayNotes.map(i=>(
-                <div key={i.id} style={{background:"#fff",borderRadius:8,padding:"6px 10px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:`3px solid ${i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6"}`}}>
+                <div key={i.id} style={{background:"#fff",borderRadius:8,padding:"6px 10px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:(i.type===T.TODO?"3px solid #059669":i.type===T.HEADER?"3px solid #2563eb":"3px solid #8b5cf6")}}>
                   <div style={{fontSize:12,color:"#1e3a6e"}}>{i.title||"(untitled)"}</div>
                   <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{folders.find(f=>f.id===i.folder)?.name||""}</div>
                 </div>
@@ -1543,14 +1543,16 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
               <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>제목</div>
               <input value={editingEvent.summary}
                 onChange={e=>setEditingEvent(p=>({...p,summary:e.target.value}))}
-                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}
+              />
             </div>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>설명 (메모)</div>
               <textarea value={editingEvent.description}
                 onChange={e=>setEditingEvent(p=>({...p,description:e.target.value}))}
                 rows={3}
-                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
+                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}
+              />
             </div>
             <div style={{display:"flex",gap:8}}>
               <button style={{flex:1,padding:"9px",borderRadius:9,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
@@ -2013,20 +2015,21 @@ function ManualView({ isMobile }) {
     const sectionsHtml = C.sections.map((s, i) => [
       i > 0 ? "<hr>" : "",
       '<div class="section">',
-      `<div class="section-title">${s.icon} ${s.title}</div>`,
-      `<div class="desc">${s.desc}</div>`,
-      `<ul class="tips">${s.tips.map(t => `<li>${t}</li>`).join("")}</ul>`,
+      '<div class="section-title">' + s.icon + " " + s.title + '</div>',
+      '<div class="desc">' + s.desc + '</div>',
+      '<ul class="tips">' + s.tips.map(t => '<li>' + t + '</li>').join("") + '</ul>',
       '<div class="ui-box">',
-      `<div class="ui-label">${s.ui.label}</div>`,
-      s.ui.items.map(item => `<div class="ui-item">${item}</div>`).join(""),
+      '<div class="ui-label">' + s.ui.label + '</div>',
+      s.ui.items.map(item => '<div class="ui-item">' + item + '</div>').join(""),
       "</div></div>",
     ].join("")).join("");
 
     const printScript = "window.onload=()=>{setTimeout(()=>window.print(),400);}";
+    const scriptTag = ["<scr","ipt>",printScript,"<","/scr","ipt>"].join("");
     const html = [
       "<!DOCTYPE html><html><head>",
       '<meta charset="UTF-8">',
-      `<title>theNOTES Manual (${C.lang})</title>`,
+      "<title>" + C.lang + "</title>",
       "<style>",
       "body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;margin:40px;color:#1e3a6e;line-height:1.7;}",
       "h1{font-size:26px;color:#2563eb;margin-bottom:6px;}",
@@ -2042,12 +2045,12 @@ function ManualView({ isMobile }) {
       "hr{border:none;border-top:1px solid #e0eaf8;margin:28px 0;}",
       "@media print{body{margin:20px;}}",
       "</style></head><body>",
-      `<h1>📖 ${C.title}</h1>`,
-      `<div class="sub">${C.subtitle||""}</div>`,
+      "<h1>📖 " + C.title + "</h1>",
+      "<div class=\"sub\">" + (C.subtitle||"") + "</div>",
       sectionsHtml,
       "<hr>",
       '<div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:16px">theNOTES · BAUMAN · duholee79@gmail.com</div>',
-      `<script>` + printScript + `</` + `script>`,
+      scriptTag,
       "</body></html>",
     ].join("\n");
 
@@ -2092,13 +2095,13 @@ function ManualView({ isMobile }) {
       {/* 섹션 목차 (번호 네비) */}
       <div style={{ background:"#fff", borderBottom:"1px solid #e0eaf8", padding: isMobile?"8px 10px":"10px 40px", display:"flex", gap:isMobile?2:6, flexWrap:"wrap", flexShrink:0, overflowX:"auto" }}>
         {C.sections.map((s, i) => (
-          <a key={i} href={`#ms-${i}`}
+          <a key={i} href={"#ms-"+i}
             title={s.title}
             style={{ fontSize:isMobile?16:11.5, color:"#4b6fa8", background:"#eff6ff", borderRadius:20,
               padding: isMobile?"6px 8px":"3px 10px",
               textDecoration:"none", fontWeight:600, whiteSpace:"nowrap", lineHeight:1 }}>
             {/* 모바일: 아이콘만, PC: 아이콘 + 텍스트 */}
-            {isMobile ? s.icon : `${s.icon} ${s.title}`}
+            {isMobile ? s.icon : (s.icon + " " + s.title)}
           </a>
         ))}
       </div>
@@ -2106,7 +2109,7 @@ function ManualView({ isMobile }) {
       {/* 본문 */}
       <div id="manual-print-area" style={{ flex:1, overflowY:"auto", padding: isMobile?"16px":"32px 40px 60px" }}>
         {C.sections.map((s, i) => (
-          <div key={i} id={`ms-${i}`} style={{ marginBottom:36, background:"#fff", borderRadius:14, boxShadow:"0 2px 12px rgba(15,32,68,.06)", overflow:"hidden" }}>
+          <div key={i} id={"ms-"+i} style={{ marginBottom:36, background:"#fff", borderRadius:14, boxShadow:"0 2px 12px rgba(15,32,68,.06)", overflow:"hidden" }}>
             {/* 섹션 헤더 */}
             <div style={{ background:"linear-gradient(90deg,rgba(37,99,235,.07),rgba(37,99,235,.02))", borderLeft:"4px solid #2563eb", padding:"16px 20px 12px" }}>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -2211,11 +2214,11 @@ function UpcomingView({ items, folders, onSelectFolder }) {
                 style={{ background:"#fff",
                   borderRadius:10, padding:"10px 14px", marginBottom:4,
                   boxShadow:"0 1px 4px rgba(15,32,68,.06)",
-                  borderLeft:`3px solid ${g.color}`, cursor:"pointer" }}
+                  borderLeft:"3px solid "+g.color, cursor:"pointer" }}
                 onClick={() => onSelectFolder(item.folder)}>
                 {/* 윗줄: 체크박스 + 별표 + 제목 (줄바꿈 허용) */}
                 <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:4 }}>
-                  <div style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${item.done?"#2563eb":"#c2d0e8"}`,
+                  <div style={{ width:16, height:16, borderRadius:4, border:(item.done?"1.5px solid #2563eb":"1.5px solid #c2d0e8"),
                     background: item.done?"#2563eb":"transparent", flexShrink:0, marginTop:2,
                     display:"flex", alignItems:"center", justifyContent:"center" }}>
                     {item.done && <span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
@@ -2288,7 +2291,7 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13.5, color:"#4b5563", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:"line-through" }}>{item.title||"(no title)"}</div>
               <div style={{ fontSize:10, color:l<=3?"#e53e3e":"#9ca3af", marginTop:2 }}>
-                {l===0?"Deleted today":`Auto-delete in ${l} days`} · {item.originalFolderName||"Unknown folder"}
+                {l===0?"Deleted today":"Auto-delete in "+l+" days"} · {item.originalFolderName||"Unknown folder"}
               </div>
             </div>
             <button style={{ background:"none", border:"1px solid #bfdbfe", borderRadius:7, color:"#2563eb", fontSize:11.5, padding:"4px 10px", cursor:"pointer", fontFamily:"inherit", fontWeight:600, flexShrink:0 }}
@@ -3237,9 +3240,9 @@ function TableBlock({ table, onUpdate, onDelete }) {
           <div style={{ display:"flex", alignItems:"center", gap:6, width:"100%", flexWrap:"wrap" }}>
             <span style={{ fontSize:11, fontWeight:600, flex:1,
               color: mode==="merge"?"#2563eb": mode==="split"?"#ea580c":"#7c3aed" }}>
-              {mode==="merge" ? `⊞ 병합 — 셀 선택 (${selCells.size})` :
+              {mode==="merge" ? "⊞ 병합 — 셀 선택 (" + selCells.size + ")" :
                mode==="split" ? "⊟ 분리 — 병합 셀 선택" :
-               `🎨 배경색 — 색 선택 후 셀 클릭 (${selCells.size})`}
+               "🎨 배경색 — 색 선택 후 셀 클릭 (" + selCells.size + ")"}
             </span>
             {/* 색상 스와치 — 크고 선명하게 */}
             {mode==="color" && (
@@ -3316,7 +3319,7 @@ function TableBlock({ table, onUpdate, onDelete }) {
       <div style={{ overflowX:"auto" }}>
         <table ref={tableRef} style={{ width:"100%", borderCollapse:"collapse", tableLayout:"fixed", fontSize:13 }}>
           <colgroup>
-            {colWidths.map((w, ci) => <col key={ci} style={{ width:`${w}%` }} />)}
+            {colWidths.map((w, ci) => <col key={ci} style={{ width:w+"%" }} />)}
           </colgroup>
           <tbody>
             {rows.map((row, ri) => (
@@ -3338,7 +3341,7 @@ function TableBlock({ table, onUpdate, onDelete }) {
                     <td key={cell.id}
                       colSpan={cell.colspan||1} rowSpan={cell.rowspan||1}
                       onClick={e => handleCellClick(ri, ci, e)}
-                      style={{ border:`1.5px solid ${borderColor}`, background:bgColor,
+                      style={{ border:"1.5px solid "+borderColor, background:bgColor,
                         padding:"6px 8px", verticalAlign:"top", position:"relative",
                         cursor: mode ? (isSelectable?"pointer":"default") : "cell",
                         minWidth:40, transition:"background .1s, border-color .1s" }}>
@@ -3375,7 +3378,7 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
     const token = localStorage.getItem("gtoken");
     if (!token || !att.driveFileId) return;
     const url = `https://www.googleapis.com/drive/v3/files/${att.driveFileId}?alt=media`;
-    fetch(url, { headers:{ Authorization:`Bearer ${token}` } })
+    fetch(url, { headers:{ Authorization:"Bearer " + token } })
       .then(r => r.blob())
       .then(blob => {
         const a = document.createElement("a");
@@ -3501,7 +3504,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
     if (!fileInputRef.current) return;
     fileInputRef.current.value = "";
     if (!file) return;
-    if (file.size > MAX_SIZE) { alert(`File too large. Max 10MB (selected: ${(file.size/1024/1024).toFixed(1)}MB)`); return; }
+    if (file.size > MAX_SIZE) { alert("File too large. Max 10MB (selected: "+(file.size/1024/1024).toFixed(1)+"MB)"); return; }
     const token = localStorage.getItem("gtoken");
     if (!token) { alert("Please sign in with Google to upload files."); return; }
     setUploading(true);
@@ -3522,7 +3525,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
       };
       onUpdate({ attachments:[...(item.attachments||[]), att] });
     } catch(err) {
-      alert(err.message === "TOKEN_EXPIRED" ? "Session expired. Please re-login." : `Upload failed: ${err.message}`);
+      alert(err.message === "TOKEN_EXPIRED" ? "Session expired. Please re-login." : "Upload failed: " + err.message);
     } finally {
       setUploading(false);
     }
@@ -3875,7 +3878,7 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
   }, [menuState]);
 
   if (item.type === T.HEADER) return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:`3px solid ${item.starred?"#f59e0b":"#2563eb"}`, borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:"linear-gradient(90deg,rgba(37,99,235,.09),rgba(37,99,235,.04))", border:"1px solid rgba(37,99,235,.12)", borderLeft:(item.starred?"3px solid #f59e0b":"3px solid #2563eb"), borderRadius:9, marginBottom:8, marginTop:12, padding:"11px 14px", cursor:"grab", userSelect:"none", ...drag }} {...bp}>
       {item.starred && <span style={{ fontSize:12, color:"#f59e0b", flexShrink:0, lineHeight:1 }}>★</span>}
       <input style={{ fontWeight:700, color:"#1a3a78", flex:1, border:"none", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?15:14 }}
         value={item.title} placeholder="Header title..."
@@ -4304,30 +4307,41 @@ function AppInner() {
 
     const itemsHtml = selItems.map(item => {
       if (item.type === T.HEADER) {
-        return `<div style="margin:18px 0 8px;padding:8px 14px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;"><span style="font-size:15px;font-weight:700;color:#1a3a78;">${item.title||""}</span></div>`;
+        return '<div style="margin:18px 0 8px;padding:8px 14px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;">'
+          + '<span style="font-size:15px;font-weight:700;color:#1a3a78;">' + (item.title||"") + '</span></div>';
       }
       if (item.type === T.TODO) {
         const check = item.done
-          ? `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:#2563eb;text-align:center;line-height:16px;color:#fff;font-size:11px;font-weight:700;margin-right:8px;">✓</span>`
-          : `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;border:1.5px solid #c2d0e8;margin-right:8px;"></span>`;
-        const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
-        const due = item.dueDate ? `<span style="color:#ef4444;font-size:11px;margin-left:8px;">📅 ${item.dueDate}</span>` : "";
-        return `<div style="display:flex;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f4fa;">${check}<span style="font-size:13.5px;color:${item.done?"#96acc8":"#1e3a6e"};${item.done?"text-decoration:line-through;":""}flex:1;">${star}${item.title||""}${due}</span><span style="font-size:10px;color:#a8bcd8;margin-left:8px;white-space:nowrap;">${item.createdAt||""}</span></div>`;
+          ? '<span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:#2563eb;text-align:center;line-height:16px;color:#fff;font-size:11px;font-weight:700;margin-right:8px;">✓</span>'
+          : '<span style="display:inline-block;width:16px;height:16px;border-radius:4px;border:1.5px solid #c2d0e8;margin-right:8px;"></span>';
+        const star = item.starred ? '<span style="color:#f59e0b;margin-right:4px;">★</span>' : "";
+        const due = item.dueDate ? '<span style="color:#ef4444;font-size:11px;margin-left:8px;">📅 ' + item.dueDate + '</span>' : "";
+        const textColor = item.done ? "#96acc8" : "#1e3a6e";
+        const textDecor = item.done ? "text-decoration:line-through;" : "";
+        return '<div style="display:flex;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f4fa;">'
+          + check
+          + '<span style="font-size:13.5px;color:' + textColor + ';' + textDecor + 'flex:1;">' + star + (item.title||"") + due + '</span>'
+          + '<span style="font-size:10px;color:#a8bcd8;margin-left:8px;white-space:nowrap;">' + (item.createdAt||"") + '</span>'
+          + '</div>';
       }
       if (item.type === T.TEXT) {
-        const body = item.body ? `<div style="font-size:12.5px;color:#374151;line-height:1.7;margin-top:4px;">${item.body}</div>` : "";
-        const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
-        return `<div style="margin-bottom:12px;padding:10px 14px;background:#fff;border-radius:8px;border-left:3px solid ${item.starred?"#f59e0b":"#2563eb"};"><div style="font-size:14px;font-weight:600;color:#0f2044;margin-bottom:4px;">${star}${item.title||""}</div>${body}</div>`;
+        const body = item.body ? '<div style="font-size:12.5px;color:#374151;line-height:1.7;margin-top:4px;">' + item.body + '</div>' : "";
+        const star = item.starred ? '<span style="color:#f59e0b;margin-right:4px;">★</span>' : "";
+        const borderColor = item.starred ? "#f59e0b" : "#2563eb";
+        return '<div style="margin-bottom:12px;padding:10px 14px;background:#fff;border-radius:8px;border-left:3px solid ' + borderColor + ';">'
+          + '<div style="font-size:14px;font-weight:600;color:#0f2044;margin-bottom:4px;">' + star + (item.title||"") + '</div>'
+          + body + '</div>';
       }
       return "";
     }).join("");
 
     // Blob URL 방식 — document.write 미사용으로 Rolldown 파싱 안전
     const printScript = "window.onload=()=>{setTimeout(()=>window.print(),300);}";
+    const scriptTag = ["<scr","ipt>",printScript,"<","/scr","ipt>"].join("");
     const html = [
       "<!DOCTYPE html><html><head>",
       '<meta charset="UTF-8">',
-      `<title>${folderName} — ${today}</title>`,
+      "<title>" + folderName + " — " + today + "</title>",
       "<style>",
       "* { box-sizing: border-box; margin: 0; padding: 0; }",
       "body { font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif; color: #1e3a6e; padding: 40px 48px; max-width: 700px; margin: 0 auto; }",
@@ -4339,12 +4353,12 @@ function AppInner() {
       "@media print { body { padding: 20px 28px; } @page { margin: 16mm 14mm; size: A4; } }",
       "</style></head><body>",
       '<div class="header">',
-      `<div><div class="folder">📁 ${folderName}</div><div class="count">${selItems.length}개 항목</div></div>`,
-      `<div class="meta">theNOTES<br>${today}</div>`,
+      "<div><div class=\"folder\">📁 " + folderName + "</div><div class=\"count\">" + selItems.length + "개 항목</div></div>",
+      "<div class=\"meta\">theNOTES<br>" + today + "</div>",
       "</div>",
       itemsHtml,
-      `<div class="footer">theNOTES · BAUMAN · Generated ${today}</div>`,
-      `<script>` + printScript + `</` + `script>`,
+      "<div class=\"footer\">theNOTES · BAUMAN · Generated " + today + "</div>",
+      scriptTag,
       "</body></html>",
     ].join("\n");
 
@@ -4645,7 +4659,7 @@ function AppInner() {
                   </div>
               }
               <div style={{ fontSize:11, color:"#8aa0c0", marginTop:2 }}>
-                {isCalendar ? `${liveItems.length} total` : isTrash ? `${trashItems.length} items` : isWorklog ? `${worklogs.length} entries` : `${visibleItems.length} items`}
+                {isCalendar ? liveItems.length+" total" : isTrash ? trashItems.length+" items" : isWorklog ? worklogs.length+" entries" : visibleItems.length+" items"}
               </div>
             </div>
             {/* Desktop only: inline buttons */}
@@ -4858,7 +4872,7 @@ function AppInner() {
                               }).filter(i => i.title || i.body);
                               if (!newItems.length) { alert("불러올 항목이 없습니다.\n열 이름: Type, Title, Body, Done, Starred, Date"); return; }
                               setItems(prev => [...prev, ...newItems]);
-                              alert(`${newItems.length}개 항목을 현재 폴더에 추가했습니다.`);
+                              alert(newItems.length+"개 항목을 현재 폴더에 추가했습니다.");
                             } catch(err) { alert("파일 읽기 실패: " + err.message); }
                           };
                           reader.readAsArrayBuffer(file);
