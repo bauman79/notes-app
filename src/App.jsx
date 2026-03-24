@@ -17,6 +17,7 @@ const firebaseApp  = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
+googleProvider.addScope("https://www.googleapis.com/auth/calendar");
 googleProvider.setCustomParameters({ prompt: "select_account" });
 const DRIVE_FILE_NAME  = "notes-app-data.json";
 
@@ -110,11 +111,70 @@ function createThumbnail(file) {
 
 
 const T = { HEADER: "header", TODO: "todo", TEXT: "text" };
-const NOTICE_ID = "__notice__";
+
+// ─── Google Calendar API helpers ─────────────────────────
+const GCAL_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary";
+
+async function gcalFetch(token, timeMin, timeMax) {
+  const params = new URLSearchParams({
+    timeMin: timeMin || new Date(Date.now() - 30*24*60*60*1000).toISOString(),
+    timeMax: timeMax || new Date(Date.now() + 60*24*60*60*1000).toISOString(),
+    maxResults: 250,
+    singleEvents: true,
+    orderBy: "startTime",
+  });
+  const r = await fetch(`${GCAL_BASE}/events?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (!r.ok) throw new Error(`gcal fetch ${r.status}`);
+  const data = await r.json();
+  return data.items || [];
+}
+
+async function gcalCreateEvent(token, { title, date, description="" }) {
+  const body = {
+    summary: title,
+    description,
+    start: { date }, // "YYYY-MM-DD" 형식
+    end:   { date },
+  };
+  const r = await fetch(`${GCAL_BASE}/events`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (!r.ok) throw new Error(`gcal create ${r.status}`);
+  return await r.json();
+}
+
+async function gcalUpdateEvent(token, eventId, patch) {
+  const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (!r.ok) throw new Error(`gcal update ${r.status}`);
+  return await r.json();
+}
+
+async function gcalDeleteEvent(token, eventId) {
+  const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (!r.ok && r.status !== 204) throw new Error(`gcal delete ${r.status}`);
+}
+
+const NOTICE_ID   = "__notice__";
 const CALENDAR_ID = "__calendar__";
-const TRASH_ID = "__trash__";
-const WORKLOG_ID = "__worklog__";
-const MANUAL_ID = "__manual__";
+const TRASH_ID    = "__trash__";
+const WORKLOG_ID  = "__worklog__";
+const MANUAL_ID   = "__manual__";
+const UPCOMING_ID = "__upcoming__";
 const TRASH_DAYS = 30;
 
 // ─── Drag-to-reorder: data-attr + container scan ──────────
@@ -563,7 +623,110 @@ function MonthPicker({ value, onChange, onClose, label }) {
 }
 
 // ─── WorklogView ──────────────────────────────────────────
+// ─── WorklogChart: 주간/월간 프로젝트별 요약 ────────────
+function WorklogChart({ worklogs, folders }) {
+  const [period, setPeriod] = useState("month"); // "week" | "month" | "3month"
+  const now = new Date();
+
+  const getCutoff = () => {
+    const d = new Date();
+    if (period==="week")   { d.setDate(d.getDate()-7); }
+    if (period==="month")  { d.setMonth(d.getMonth()-1); }
+    if (period==="3month") { d.setMonth(d.getMonth()-3); }
+    return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+  };
+
+  const cutoff = getCutoff();
+  const filtered = worklogs.filter(w => (w.date||"") >= cutoff);
+
+  // 프로젝트별 항목 수 집계
+  const byProject = {};
+  filtered.forEach(w => {
+    const k = w.project || "(미지정)";
+    byProject[k] = (byProject[k]||0) + 1;
+  });
+  const sorted = Object.entries(byProject).sort((a,b)=>b[1]-a[1]);
+  const maxVal = sorted[0]?.[1] || 1;
+
+  // 날짜별 일지 수 (최근 14일)
+  const byDate = {};
+  const today = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}`;
+  for (let i=13;i>=0;i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const k = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+    byDate[k] = 0;
+  }
+  worklogs.forEach(w => { if (byDate[w.date]!==undefined) byDate[w.date]++; });
+  const dateEntries = Object.entries(byDate);
+  const maxDate = Math.max(...dateEntries.map(([,v])=>v), 1);
+
+  const COLORS = ["#2563eb","#059669","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#ec4899","#84cc16","#f97316","#94a3b8"];
+
+  return (
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e0eaf8",padding:"16px 20px",marginBottom:12,flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+        <span style={{fontSize:13,fontWeight:700,color:"#1e3a6e"}}>📊 업무 요약</span>
+        <div style={{flex:1}}/>
+        {[["week","1주"],["month","1개월"],["3month","3개월"]].map(([v,l])=>(
+          <button key={v} style={{...tbBtn,
+            background:period===v?"#eff6ff":"#f5f8ff",
+            color:period===v?"#2563eb":"#4b6fa8",
+            borderColor:period===v?"#bfdbfe":"#dce8fb",
+            fontSize:11}}
+            onClick={()=>setPeriod(v)}>{l}</button>
+        ))}
+        <span style={{fontSize:11,color:"#94a3b8"}}>{filtered.length}개 항목</span>
+      </div>
+
+      <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+        {/* 프로젝트별 막대 */}
+        <div style={{flex:"1 1 240px",minWidth:200}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>프로젝트별</div>
+          {sorted.length===0
+            ? <div style={{fontSize:12,color:"#b0c4de",padding:"8px 0"}}>해당 기간 데이터 없음</div>
+            : sorted.map(([proj,cnt],i)=>(
+              <div key={proj} style={{marginBottom:6}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
+                  <span style={{fontSize:11.5,color:"#1e3a6e",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"70%"}}>{proj}</span>
+                  <span style={{fontSize:11,color:"#6b8bb5",fontWeight:600,flexShrink:0}}>{cnt}회</span>
+                </div>
+                <div style={{height:8,background:"#f0f4fa",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${(cnt/maxVal)*100}%`,background:COLORS[i%COLORS.length],borderRadius:4,transition:"width .3s"}}/>
+                </div>
+              </div>
+          ))}
+        </div>
+
+        {/* 최근 14일 활동 히트맵 */}
+        <div style={{flex:"1 1 280px",minWidth:240}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>최근 14일 활동</div>
+          <div style={{display:"flex",gap:3,alignItems:"flex-end"}}>
+            {dateEntries.map(([date,cnt])=>{
+              const isToday = date===today;
+              const h = Math.max(8, (cnt/maxDate)*60);
+              return (
+                <div key={date} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                  <div title={`${date}: ${cnt}개`}
+                    style={{width:"100%",height:h,borderRadius:3,
+                      background:cnt===0?"#f0f4fa":COLORS[0],
+                      opacity:cnt===0?1:0.3+0.7*(cnt/maxDate),
+                      border:isToday?"2px solid #f59e0b":"none",
+                      transition:"height .2s",cursor:cnt>0?"pointer":"default"}}/>
+                  <span style={{fontSize:8,color:"#94a3b8",transform:"rotate(-45deg)",transformOrigin:"top left",whiteSpace:"nowrap",marginLeft:4}}>
+                    {date.slice(5)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
+  const [showChart, setShowChart] = useState(false);
   const now = new Date();
   const todayYM = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}`;
   const [search,        setSearch]        = useState("");
@@ -721,9 +884,12 @@ function WorklogView({ worklogs, setWorklogs, folders, isMobile }) {
         </label>
         {selected.size>0 && <button style={{...wBtn,color:"#e53e3e",borderColor:"#fecaca"}} onClick={delSel}>Delete ({selected.size})</button>}
         <button style={{...wBtn,color:"#2563eb",borderColor:"#bfdbfe",fontWeight:700}} onClick={()=>addEntry(mkDate())}>＋ Add</button>
+        <button style={{...wBtn, background:showChart?"#eff6ff":"#f5f8ff", color:showChart?"#2563eb":"#4b6fa8", borderColor:showChart?"#bfdbfe":"#dce8fb"}}
+          onClick={()=>setShowChart(v=>!v)}>📊 Chart</button>
       </div>
 
-      {/* ── List ── */}
+      {/* ── Chart View ── */}
+      {showChart && <WorklogChart worklogs={worklogs} folders={folders} />}
       <div ref={listRef} style={{flex:1,overflowY:"auto",paddingBottom:40}}>
         {sortedYMs.length===0 && (
           <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 0",color:"#b0c4de"}}>
@@ -1024,178 +1190,355 @@ const wCell = { border:"none", borderBottom:"1px solid transparent", background:
 const wRowBtn = { background:"none", border:"1px solid #e8eef8", borderRadius:5, width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#6b8bb5", fontSize:12, fontWeight:700, padding:0, fontFamily:"inherit" };
 
 // ─── CalendarView ─────────────────────────────────────────
-function CalendarView({ items, folders }) {
+// ─── CalendarView (Google Calendar 통합 + 월간 그리드) ────
+function CalendarView({ items, folders, accessToken, onUpdate }) {
   const now = new Date();
-  const todayYM = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}`;
-  const [search,        setSearch]        = useState("");
-  const [navYM,         setNavYM]         = useState(null);
-  const [showNav,       setShowNav]       = useState(false);
-  const [filterFolders, setFilterFolders] = useState(new Set());
-  const [showFilter,    setShowFilter]    = useState(false);
-  const [showDl,        setShowDl]        = useState(false);
-  const listRef = useRef(null);
+  const pad2 = n => String(n).padStart(2,"0");
+  const [curYear,  setCurYear]  = useState(now.getFullYear());
+  const [curMonth, setCurMonth] = useState(now.getMonth()); // 0-based
+  const [gcalEvents, setGcalEvents] = useState([]);
+  const [gcalLoading, setGcalLoading] = useState(false);
+  const [gcalError, setGcalError] = useState("");
+  const [selectedDay, setSelectedDay] = useState(null); // "YYYY.MM.DD"
+  const [showNewEvent, setShowNewEvent] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [editingEvent, setEditingEvent] = useState(null); // {id, summary, description}
+  const [viewMode, setViewMode] = useState("month"); // "month" | "list"
 
-  const allSelected = filterFolders.size === 0;
-  const toggleFF = name => setFilterFolders(prev => {
-    const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n;
-  });
-  const filterLabel = allSelected ? "All" : filterFolders.size === 1 ? [...filterFolders][0] : `${filterFolders.size} selected`;
+  // 달 이동
+  const prevMonth = () => { if (curMonth === 0) { setCurYear(y=>y-1); setCurMonth(11); } else setCurMonth(m=>m-1); };
+  const nextMonth = () => { if (curMonth === 11) { setCurYear(y=>y+1); setCurMonth(0); } else setCurMonth(m=>m+1); };
 
-  const getFN  = id => folders.find(f => f.id===id)?.name || "—";
-  const getFId = id => folders.find(f => f.id===id);
-  const tIcon  = t => t===T.HEADER?"▬":t===T.TODO?"☐":"T";
-  const tColor = t => t===T.HEADER?"#2563eb":t===T.TODO?"#059669":"#8b5cf6";
+  // 날짜 유틸
+  const ymStr = `${curYear}.${pad2(curMonth+1)}`;
+  const todayStr = `${now.getFullYear()}.${pad2(now.getMonth()+1)}.${pad2(now.getDate())}`;
+  const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
+  const firstDow = new Date(curYear, curMonth, 1).getDay(); // 0=Sun
+  const allDays = [...Array(firstDow).fill(null), ...Array(daysInMonth).fill(0).map((_,i)=>i+1)];
 
-  const q = search.trim().toLowerCase();
-  const filtered = [...items]
-    .filter(i => !i.deletedAt)
-    .filter(i => !q || (i.title||"").toLowerCase().includes(q))
-    .filter(i => allSelected || filterFolders.has(getFN(i.folder)))
-    .sort((a,b) => (b.createdAt||"").localeCompare(a.createdAt||""));
-
-  const grouped = {};
-  filtered.forEach(item => {
-    const d = item.createdAt || "No date";
-    if (!grouped[d]) grouped[d] = [];
-    grouped[d].push(item);
-  });
-
-  // Group by YM for section headers
-  const ymGroups = {};
-  Object.entries(grouped).forEach(([date, dayItems]) => {
-    const ym = date.slice(0,7);
-    if (!ymGroups[ym]) ymGroups[ym] = {};
-    ymGroups[ym][date] = dayItems;
-  });
-  const sortedYMs = Object.keys(ymGroups).sort((a,b) => b.localeCompare(a));
-
-  const navigateTo = ym => {
-    setNavYM(ym); setShowNav(false);
-    setTimeout(() => {
-      listRef.current?.querySelector(`[data-calym="${ym}"]`)?.scrollIntoView({ behavior:"smooth", block:"start" });
-    }, 100);
+  // Google Calendar 로드
+  const loadGCal = async () => {
+    if (!accessToken) return;
+    setGcalLoading(true); setGcalError("");
+    try {
+      const tMin = new Date(curYear, curMonth, 1).toISOString();
+      const tMax = new Date(curYear, curMonth+1, 0, 23, 59, 59).toISOString();
+      const evts = await gcalFetch(accessToken, tMin, tMax);
+      setGcalEvents(evts);
+    } catch(e) {
+      if (e.message === "TOKEN_EXPIRED") setGcalError("토큰 만료 — 재로그인 필요");
+      else setGcalError("Google Calendar 연동 오류");
+    } finally { setGcalLoading(false); }
   };
 
-  const doDownload = () => {
-    const rows = filtered.map(item => ({
-      Date: item.createdAt||"",
-      Folder: getFN(item.folder),
-      Type: item.type===T.HEADER?"Header":item.type===T.TODO?"To-do":"Text",
-      Title: item.title||"",
-      Done: item.type===T.TODO?(item.done?"Yes":"No"):"",
-      Starred: item.starred?"★":"",
-    }));
-    if (!rows.length) { alert("No data to export."); return; }
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [{wch:12},{wch:14},{wch:8},{wch:40},{wch:6},{wch:4}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Calendar");
-    XLSX.writeFile(wb, `calendar_${navYM||todayYM}.xlsx`);
-    setShowDl(false);
+  useEffect(() => { loadGCal(); }, [curYear, curMonth, accessToken]);
+
+  // 날짜별 이벤트 맵: "YYYY.MM.DD" → [{...}]
+  const gcalByDay = {};
+  gcalEvents.forEach(ev => {
+    const d = ev.start?.date || ev.start?.dateTime?.slice(0,10);
+    if (!d) return;
+    const [y,m,day] = d.split("-");
+    const key = `${y}.${m}.${day}`;
+    if (!gcalByDay[key]) gcalByDay[key] = [];
+    gcalByDay[key].push(ev);
+  });
+
+  // 이 달 theNOTES 아이템 (createdAt 기준)
+  const notesByDay = {};
+  items.filter(i => !i.deletedAt && (i.createdAt||"").startsWith(ymStr)).forEach(i => {
+    const key = i.createdAt;
+    if (!notesByDay[key]) notesByDay[key] = [];
+    notesByDay[key].push(i);
+  });
+  // dueDate 기준 To-do
+  items.filter(i => !i.deletedAt && i.type===T.TODO && (i.dueDate||"").startsWith(ymStr)).forEach(i => {
+    const key = i.dueDate;
+    if (!notesByDay[key]) notesByDay[key] = [];
+    if (!notesByDay[key].find(x=>x.id===i.id+"_due")) notesByDay[key].push({...i, _isDue:true});
+  });
+
+  // Google Calendar 이벤트 생성
+  const createGCalEvent = async () => {
+    if (!newEventTitle.trim() || !selectedDay || !accessToken) return;
+    const [y,m,d] = selectedDay.split(".");
+    try {
+      const ev = await gcalCreateEvent(accessToken, { title:newEventTitle.trim(), date:`${y}-${m}-${d}` });
+      setGcalEvents(prev=>[...prev, ev]);
+      setNewEventTitle(""); setShowNewEvent(false);
+    } catch(e) { alert("Google Calendar 이벤트 생성 실패: " + e.message); }
   };
 
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%" }} onClick={() => { setShowFilter(false); setShowNav(false); }}>
+  // Google Calendar 이벤트 수정
+  const updateGCalEvent = async () => {
+    if (!editingEvent || !accessToken) return;
+    try {
+      const updated = await gcalUpdateEvent(accessToken, editingEvent.id, { summary: editingEvent.summary, description: editingEvent.description||"" });
+      setGcalEvents(prev => prev.map(e=>e.id===updated.id?updated:e));
+      setEditingEvent(null);
+    } catch(e) { alert("수정 실패: " + e.message); }
+  };
 
-      {/* Controls */}
-      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", paddingBottom:10, borderBottom:"1px solid #eef3ff", marginBottom:8 }}>
-        <div style={{ flex:1, minWidth:120, position:"relative" }}>
-          <span style={{ position:"absolute", left:9, top:"50%", transform:"translateY(-50%)", color:"#a0b4cc", fontSize:13 }}>🔍</span>
-          <input style={{ width:"100%", padding:"7px 10px 7px 28px", borderRadius:9, border:"1.5px solid #e0eaf8", fontSize:12.5, color:"#1e3a6e", outline:"none", fontFamily:"inherit", background:"#fff", boxSizing:"border-box" }}
-            placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
+  // Google Calendar 이벤트 삭제
+  const deleteGCalEvent = async (eventId) => {
+    if (!accessToken) return;
+    if (!window.confirm("이 Google Calendar 이벤트를 삭제하시겠습니까?")) return;
+    try {
+      await gcalDeleteEvent(accessToken, eventId);
+      setGcalEvents(prev => prev.filter(e=>e.id!==eventId));
+    } catch(e) { alert("삭제 실패: " + e.message); }
+  };
 
-        {/* Folder filter */}
-        <div style={{ position:"relative" }} onClick={e => e.stopPropagation()}>
-          <button style={{ ...wBtn, ...(allSelected?{}:{background:"#eef3ff",color:"#2563eb",borderColor:"#bfdbfe"}) }}
-            onClick={() => setShowFilter(v => !v)}>
-            ⊞ {filterLabel}
-          </button>
-          {showFilter && (
-            <div style={{ position:"absolute", top:"100%", left:0, marginTop:4, background:"#fff", borderRadius:12, boxShadow:"0 6px 24px rgba(15,32,68,.16)", border:"1px solid #e0eaf8", zIndex:400, minWidth:170, overflow:"hidden" }} onClick={e=>e.stopPropagation()}>
-              <div style={{ padding:"6px 12px 4px", fontSize:10, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" }}>Folder Filter</div>
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid #f0f4fa", background:allSelected?"#eff6ff":"transparent" }}
-                onClick={() => setFilterFolders(new Set())}>
-                <div style={{ width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:allSelected?"#2563eb":"#c2d0e8",background:allSelected?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-                  {allSelected && <span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
-                </div>
-                <span style={{ fontSize:13, fontWeight:600, color:allSelected?"#2563eb":"#1e3a6e" }}>All</span>
-              </div>
-              {folders.map(f => {
-                const on = filterFolders.has(f.name);
-                return (
-                  <div key={f.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"9px 14px", cursor:"pointer", background:on?"#eff6ff":"transparent" }}
-                    onClick={() => toggleFF(f.name)}>
-                    <div style={{ width:15,height:15,borderRadius:4,border:"1.5px solid",borderColor:on?"#2563eb":"#c2d0e8",background:on?"#2563eb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-                      {on && <span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
-                    </div>
-                    <span style={{ fontSize:13, fontWeight:500, color:on?"#2563eb":"#1e3a6e" }}>{f.name}</span>
-                  </div>
-                );
-              })}
-            </div>
+  const dayCell = (day) => {
+    if (!day) return <td key={`e-${Math.random()}`} style={{border:"1px solid #e0eaf8",background:"#f8faff",minWidth:90,height:80}}/>;
+    const key = `${curYear}.${pad2(curMonth+1)}.${pad2(day)}`;
+    const isToday = key === todayStr;
+    const isSelected = key === selectedDay;
+    const gcalEvts = gcalByDay[key] || [];
+    const noteEvts = notesByDay[key] || [];
+    const hasDue = noteEvts.some(i=>i._isDue);
+
+    return (
+      <td key={key}
+        onClick={() => setSelectedDay(isSelected ? null : key)}
+        style={{
+          border:"1px solid #e0eaf8", verticalAlign:"top", padding:"4px 5px",
+          minWidth:90, height:80, cursor:"pointer", position:"relative",
+          background: isSelected?"#eff6ff": isToday?"#fefce8":"#fff",
+          transition:"background .1s"
+        }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+          <span style={{
+            fontSize:12, fontWeight:isToday?800:500,
+            color:isToday?"#2563eb":"#374151",
+            background:isToday?"#dbeafe":"transparent",
+            borderRadius:"50%", width:22, height:22,
+            display:"flex",alignItems:"center",justifyContent:"center"
+          }}>{day}</span>
+          {(gcalEvts.length>0||hasDue) && (
+            <span style={{fontSize:9,color:"#6b7280"}}>
+              {gcalEvts.length>0&&`G${gcalEvts.length}`}
+              {hasDue&&" 📅"}
+            </span>
           )}
         </div>
+        {/* Google Calendar 이벤트 */}
+        {gcalEvts.slice(0,2).map(ev=>(
+          <div key={ev.id} style={{
+            fontSize:10,lineHeight:1.3,background:"#dbeafe",color:"#1d4ed8",
+            borderRadius:3,padding:"1px 4px",marginBottom:1,
+            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
+            cursor:"pointer"
+          }}
+          onClick={e=>{e.stopPropagation();setEditingEvent({id:ev.id,summary:ev.summary||"",description:ev.description||""});}}>
+            📅 {ev.summary}
+          </div>
+        ))}
+        {gcalEvts.length>2 && <div style={{fontSize:9,color:"#6b7280"}}>+{gcalEvts.length-2}개</div>}
+        {/* theNOTES 항목 (due date) */}
+        {noteEvts.filter(i=>i._isDue).slice(0,1).map(i=>(
+          <div key={i.id+"d"} style={{
+            fontSize:10,lineHeight:1.3,background:"#fef2f2",color:"#dc2626",
+            borderRadius:3,padding:"1px 4px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"
+          }}>⏰ {i.title}</div>
+        ))}
+      </td>
+    );
+  };
 
-        {/* Month nav */}
-        <div style={{ position:"relative" }}>
-          <button style={wBtn} onClick={() => setShowNav(v => !v)}>📅 {navYM||todayYM}</button>
-          {showNav && <MonthPicker value={navYM||todayYM} onChange={navigateTo} onClose={() => setShowNav(false)} label="Go to month" />}
-        </div>
+  // 선택된 날 상세
+  const selDayGcal  = selectedDay ? (gcalByDay[selectedDay]||[]) : [];
+  const selDayNotes = selectedDay ? (notesByDay[selectedDay]||[]).filter(i=>!i._isDue) : [];
+  const selDayDue   = selectedDay ? (notesByDay[selectedDay]||[]).filter(i=>i._isDue) : [];
 
-        {/* Excel download */}
-        <button style={{ ...wBtn, background:"#2563eb", color:"#fff", border:"none", boxShadow:"0 2px 8px rgba(37,99,235,.3)" }}
-          onClick={doDownload}>↓ Excel</button>
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+      {/* 헤더 */}
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 20px 8px",borderBottom:"1px solid #e0eaf8",flexShrink:0,flexWrap:"wrap"}}>
+        <button style={{...tbBtn}} onClick={prevMonth}>‹</button>
+        <span style={{fontSize:16,fontWeight:700,color:"#1e3a6e",minWidth:120,textAlign:"center"}}>
+          {curYear}년 {curMonth+1}월
+        </span>
+        <button style={{...tbBtn}} onClick={nextMonth}>›</button>
+        <button style={{...tbBtn,background: now.getFullYear()===curYear&&now.getMonth()===curMonth?"#eff6ff":"#f5f8ff"}}
+          onClick={()=>{setCurYear(now.getFullYear());setCurMonth(now.getMonth());}}>Today</button>
+        <div style={{flex:1}}/>
+        {gcalLoading && <span style={{fontSize:11,color:"#6b8bb5"}}>📅 로딩 중...</span>}
+        {gcalError  && <span style={{fontSize:11,color:"#ef4444"}}>{gcalError}</span>}
+        {!accessToken && <span style={{fontSize:11,color:"#94a3b8"}}>Google 로그인 시 일정 연동됩니다</span>}
+        {accessToken && !gcalLoading && !gcalError && (
+          <span style={{fontSize:11,color:"#059669"}}>✅ Google Calendar 연동됨 ({gcalEvents.length}개)</span>
+        )}
+        <button style={{...tbBtn}} onClick={()=>setViewMode(v=>v==="month"?"list":"month")}>
+          {viewMode==="month"?"📋 목록":"📅 월간"}
+        </button>
       </div>
 
-      {/* List */}
-      <div ref={listRef} style={{ flex:1, overflowY:"auto", paddingBottom:40 }}>
-        {sortedYMs.length === 0 && (
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", color:"#b0c4de" }}>
-            <div style={{ fontSize:32, marginBottom:10 }}>◷</div>
-            <div style={{ fontSize:13 }}>{search||!allSelected ? "No results" : "No items."}</div>
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        {/* 월간 그리드 */}
+        {viewMode==="month" && (
+          <div style={{flex:1,overflowY:"auto",padding:"8px 12px"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+              <thead>
+                <tr>
+                  {["일","월","화","수","목","금","토"].map((d,i)=>(
+                    <th key={d} style={{
+                      padding:"6px 0",fontSize:11,fontWeight:700,textAlign:"center",
+                      color:i===0?"#ef4444":i===6?"#6b7280":"#374151",
+                      borderBottom:"2px solid #e0eaf8"
+                    }}>{d}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({length:Math.ceil(allDays.length/7)},(_,ri)=>(
+                  <tr key={ri}>
+                    {allDays.slice(ri*7,ri*7+7).map((d,ci)=>dayCell(d))}
+                    {allDays.slice(ri*7,ri*7+7).length<7 && [...Array(7-allDays.slice(ri*7,ri*7+7).length)].map((_,i)=>(
+                      <td key={"e"+i} style={{border:"1px solid #e0eaf8",background:"#f8faff"}}/>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-        {sortedYMs.map(ym => {
-          const [yy, mm] = ym.split(".");
-          const dayEntries = Object.entries(ymGroups[ym]).sort((a,b) => b[0].localeCompare(a[0]));
-          const total = dayEntries.reduce((s,[,v]) => s+v.length, 0);
-          return (
-            <div key={ym} data-calym={ym} style={{ marginBottom:28 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, marginTop:4 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:"#1e3a6e", background:"#eef3ff", borderRadius:20, padding:"4px 14px", flexShrink:0 }}>{yy} / {parseInt(mm)}</div>
-                <div style={{ flex:1, height:1, background:"rgba(37,99,235,.1)" }} />
-                <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0 }}>{total}</span>
-              </div>
-              {dayEntries.map(([date, dayItems]) => (
-                <div key={date} style={{ marginBottom:12 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
-                    <div style={{ flex:1, height:1, background:"rgba(37,99,235,.08)" }} />
-                    <div style={{ fontSize:11, fontWeight:700, color:"#2563eb", padding:"2px 8px", background:"#eef3ff", borderRadius:10, whiteSpace:"nowrap" }}>{date}</div>
-                    <div style={{ flex:1, height:1, background:"rgba(37,99,235,.08)" }} />
+
+        {/* 목록 뷰 */}
+        {viewMode==="list" && (
+          <div style={{flex:1,overflowY:"auto",padding:"12px 20px"}}>
+            {Object.keys({...gcalByDay,...notesByDay}).sort().map(day => {
+              if (!day.startsWith(ymStr)) return null;
+              const g = gcalByDay[day]||[];
+              const n = notesByDay[day]||[];
+              if (!g.length && !n.length) return null;
+              return (
+                <div key={day} style={{marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#2563eb",background:"#eff6ff",borderRadius:8,padding:"3px 10px",marginBottom:6,display:"inline-block"}}>
+                    {day}
                   </div>
-                  {dayItems.map(item => (
-                    <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, background:"#fff", borderRadius:9, padding:"10px 14px", boxShadow:"0 1px 3px rgba(15,32,68,.05)", marginBottom:3 }}>
-                      <span style={{ fontSize:12, fontWeight:700, width:16, flexShrink:0, textAlign:"center", color:tColor(item.type) }}>{tIcon(item.type)}</span>
-                      <span style={{ flex:1, fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(no title)"}</span>
-                      {item.starred && <span style={{ color:"#f59e0b", fontSize:12 }}>★</span>}
-                      <span style={{ fontSize:10, color:"#6b8bb5", background:"#f0f5fc", borderRadius:8, padding:"2px 7px", flexShrink:0 }}>{getFN(item.folder)}</span>
-                      {item.type===T.TODO && (
-                        <span style={{ fontSize:10, borderRadius:8, padding:"2px 7px", flexShrink:0, ...(item.done?{color:"#065f46",background:"#d1fae5"}:{color:"#b45309",background:"#fef3c7"}) }}>
-                          {item.done?"Done":"Active"}
-                        </span>
-                      )}
+                  {g.map(ev=>(
+                    <div key={ev.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:8,padding:"7px 12px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:"3px solid #2563eb"}}>
+                      <span style={{fontSize:12}}>📅</span>
+                      <span style={{flex:1,fontSize:13,color:"#1e3a6e",fontWeight:500}}>{ev.summary||"(제목 없음)"}</span>
+                      <span style={{fontSize:11,color:"#94a3b8"}}>Google Calendar</span>
+                      <button style={{background:"none",border:"1px solid #e0eaf8",borderRadius:5,padding:"2px 7px",fontSize:11,cursor:"pointer",color:"#4b6fa8"}}
+                        onClick={()=>setEditingEvent({id:ev.id,summary:ev.summary||"",description:ev.description||""})}>편집</button>
+                      <button style={{background:"none",border:"1px solid #fecaca",borderRadius:5,padding:"2px 7px",fontSize:11,cursor:"pointer",color:"#ef4444"}}
+                        onClick={()=>deleteGCalEvent(ev.id)}>삭제</button>
+                    </div>
+                  ))}
+                  {n.filter(i=>!i._isDue).map(i=>(
+                    <div key={i.id} style={{display:"flex",alignItems:"center",gap:8,background:"#fff",borderRadius:8,padding:"7px 12px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:`3px solid ${i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6"}`}}>
+                      <span style={{fontSize:11,color:i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6",fontWeight:700}}>
+                        {i.type===T.TODO?"☐":i.type===T.HEADER?"▬":"T"}
+                      </span>
+                      <span style={{flex:1,fontSize:13,color:"#1e3a6e"}}>{i.title||"(untitled)"}</span>
+                      <span style={{fontSize:11,color:"#94a3b8"}}>{folders.find(f=>f.id===i.folder)?.name||""}</span>
                     </div>
                   ))}
                 </div>
-              ))}
+              );
+            })}
+          </div>
+        )}
+
+        {/* 선택된 날 사이드패널 */}
+        {selectedDay && viewMode==="month" && (
+          <div style={{width:260,borderLeft:"1px solid #e0eaf8",display:"flex",flexDirection:"column",background:"#f8faff",overflowY:"auto",flexShrink:0}}>
+            <div style={{padding:"10px 14px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #e0eaf8"}}>
+              <span style={{fontSize:13,fontWeight:700,color:"#1e3a6e"}}>{selectedDay}</span>
+              {accessToken && (
+                <button style={{...tbBtn,fontSize:11}}
+                  onClick={()=>setShowNewEvent(true)}>+ 일정 추가</button>
+              )}
             </div>
-          );
-        })}
+            <div style={{flex:1,overflowY:"auto",padding:"8px 12px"}}>
+              {/* 새 이벤트 입력 */}
+              {showNewEvent && (
+                <div style={{background:"#fff",borderRadius:8,padding:"8px 10px",marginBottom:8,boxShadow:"0 1px 4px rgba(15,32,68,.08)"}}>
+                  <input
+                    value={newEventTitle} onChange={e=>setNewEventTitle(e.target.value)}
+                    placeholder="이벤트 제목..."
+                    autoFocus
+                    style={{width:"100%",border:"none",borderBottom:"1px solid #e0eaf8",outline:"none",fontSize:12.5,color:"#1e3a6e",background:"transparent",marginBottom:6,padding:"2px 0",boxSizing:"border-box"}}
+                    onKeyDown={e=>{if(e.key==="Enter")createGCalEvent();if(e.key==="Escape")setShowNewEvent(false);}}
+                  />
+                  <div style={{display:"flex",gap:4}}>
+                    <button style={{...tbBtn,background:"#2563eb",color:"#fff",border:"none",fontSize:11}} onClick={createGCalEvent}>저장</button>
+                    <button style={{...tbBtn,fontSize:11}} onClick={()=>{setShowNewEvent(false);setNewEventTitle("");}}>취소</button>
+                  </div>
+                </div>
+              )}
+              {/* Google Calendar 이벤트 */}
+              {selDayGcal.length>0 && <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:4}}>Google Calendar</div>}
+              {selDayGcal.map(ev=>(
+                <div key={ev.id} style={{background:"#fff",borderRadius:8,padding:"7px 10px",marginBottom:4,borderLeft:"3px solid #2563eb",boxShadow:"0 1px 3px rgba(15,32,68,.05)"}}>
+                  <div style={{fontSize:12.5,color:"#1e3a6e",fontWeight:600,marginBottom:2}}>{ev.summary||"(제목 없음)"}</div>
+                  {ev.description && <div style={{fontSize:11,color:"#6b8bb5",lineHeight:1.5}}>{ev.description}</div>}
+                  <div style={{display:"flex",gap:4,marginTop:5}}>
+                    <button style={{...tbBtn,fontSize:10}} onClick={()=>setEditingEvent({id:ev.id,summary:ev.summary||"",description:ev.description||""})}>편집</button>
+                    <button style={{...tbBtn,fontSize:10,color:"#ef4444",borderColor:"#fecaca"}} onClick={()=>deleteGCalEvent(ev.id)}>삭제</button>
+                  </div>
+                </div>
+              ))}
+              {/* theNOTES 노트 */}
+              {selDayNotes.length>0 && <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:4,marginTop:8}}>Notes</div>}
+              {selDayNotes.map(i=>(
+                <div key={i.id} style={{background:"#fff",borderRadius:8,padding:"6px 10px",marginBottom:3,boxShadow:"0 1px 3px rgba(15,32,68,.05)",borderLeft:`3px solid ${i.type===T.TODO?"#059669":i.type===T.HEADER?"#2563eb":"#8b5cf6"}`}}>
+                  <div style={{fontSize:12,color:"#1e3a6e"}}>{i.title||"(untitled)"}</div>
+                  <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{folders.find(f=>f.id===i.folder)?.name||""}</div>
+                </div>
+              ))}
+              {/* 마감기한 */}
+              {selDayDue.length>0 && <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:4,marginTop:8}}>⏰ 마감기한</div>}
+              {selDayDue.map(i=>(
+                <div key={i.id+"_due"} style={{background:"#fef2f2",borderRadius:8,padding:"6px 10px",marginBottom:3,borderLeft:"3px solid #ef4444"}}>
+                  <div style={{fontSize:12,color:"#dc2626",fontWeight:600}}>{i.title||"(untitled)"}</div>
+                  <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>{folders.find(f=>f.id===i.folder)?.name||""}</div>
+                </div>
+              ))}
+              {!selDayGcal.length && !selDayNotes.length && !selDayDue.length && (
+                <div style={{fontSize:12,color:"#94a3b8",textAlign:"center",paddingTop:20}}>이 날 항목 없음</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Google Calendar 이벤트 편집 모달 */}
+      {editingEvent && (
+        <div style={{position:"fixed",inset:0,background:"rgba(15,32,68,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}}
+          onClick={()=>setEditingEvent(null)}>
+          <div style={{background:"#fff",borderRadius:14,padding:"20px 22px",width:340,boxShadow:"0 12px 40px rgba(15,32,68,.25)"}}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,color:"#1e3a6e",marginBottom:14}}>📅 Google Calendar 이벤트 편집</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>제목</div>
+              <input value={editingEvent.summary}
+                onChange={e=>setEditingEvent(p=>({...p,summary:e.target.value}))}
+                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,color:"#94a3b8",marginBottom:4}}>설명 (메모)</div>
+              <textarea value={editingEvent.description}
+                onChange={e=>setEditingEvent(p=>({...p,description:e.target.value}))}
+                rows={3}
+                style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{display:"flex",gap:8"}}>
+              <button style={{flex:1,padding:"9px",borderRadius:9,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+                onClick={updateGCalEvent}>저장</button>
+              <button style={{flex:1,padding:"9px",borderRadius:9,border:"1px solid #e0eaf8",background:"#fff",color:"#6b7280",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}
+                onClick={()=>setEditingEvent(null)}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ─── TrashView ────────────────────────────────────────────
 // ─── ManualView ───────────────────────────────────────────
@@ -1786,6 +2129,81 @@ function ManualView({ isMobile }) {
   );
 }
 
+// ─── UpcomingView ─────────────────────────────────────────
+function UpcomingView({ items, folders, onSelectFolder }) {
+  const today = mkDate();
+  const todayD = new Date(); todayD.setHours(0,0,0,0);
+  const tomorrow = new Date(todayD); tomorrow.setDate(tomorrow.getDate()+1);
+  const weekEnd  = new Date(todayD); weekEnd.setDate(weekEnd.getDate()+7);
+
+  const parseDate = d => {
+    if (!d) return null;
+    const [y,m,day] = d.split(".").map(Number);
+    const dt = new Date(y, m-1, day); dt.setHours(0,0,0,0);
+    return dt;
+  };
+
+  const dueTodos = items
+    .filter(i => !i.deletedAt && i.type === T.TODO && i.dueDate)
+    .sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+
+  const groups = [
+    { key:"overdue", label:"⚠️ 기한 초과", color:"#ef4444", bg:"#fff1f2", items: dueTodos.filter(i => { const d=parseDate(i.dueDate); return d && d < todayD; }) },
+    { key:"today",   label:"📅 오늘",      color:"#f59e0b", bg:"#fffbeb", items: dueTodos.filter(i => { const d=parseDate(i.dueDate); return d && d.getTime()===todayD.getTime(); }) },
+    { key:"tmrow",   label:"🌅 내일",      color:"#2563eb", bg:"#eff6ff", items: dueTodos.filter(i => { const d=parseDate(i.dueDate); return d && d.getTime()===tomorrow.getTime(); }) },
+    { key:"week",    label:"📆 이번 주",   color:"#059669", bg:"#f0fdf4", items: dueTodos.filter(i => { const d=parseDate(i.dueDate); return d && d > tomorrow && d <= weekEnd; }) },
+    { key:"later",   label:"🗓 이후",      color:"#6b7280", bg:"#f9fafb", items: dueTodos.filter(i => { const d=parseDate(i.dueDate); return d && d > weekEnd; }) },
+  ].filter(g => g.items.length > 0);
+
+  if (dueTodos.length === 0) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60%", color:"#b0c4de" }}>
+      <div style={{ fontSize:36, marginBottom:10 }}>📅</div>
+      <div style={{ fontSize:13 }}>마감기한이 설정된 항목이 없습니다.</div>
+      <div style={{ fontSize:11, marginTop:6, color:"#c0d0e4" }}>To-do의 ⋯ 버튼 → Due Date로 마감기한을 설정하세요.</div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"16px 36px 40px", overflowY:"auto", height:"100%" }}>
+      <div style={{ fontSize:13, color:"#6b8bb5", marginBottom:20 }}>
+        마감기한이 설정된 To-do {dueTodos.length}개
+      </div>
+      {groups.map(g => (
+        <div key={g.key} style={{ marginBottom:28 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <span style={{ fontSize:13, fontWeight:700, color:g.color }}>{g.label}</span>
+            <span style={{ fontSize:11, color:g.color, background:g.bg, borderRadius:20, padding:"1px 8px", fontWeight:700 }}>{g.items.length}</span>
+          </div>
+          {g.items.map(item => {
+            const folder = folders.find(f => f.id===item.folder);
+            return (
+              <div key={item.id}
+                style={{ display:"flex", alignItems:"center", gap:10, background:"#fff",
+                  borderRadius:10, padding:"10px 14px", marginBottom:4,
+                  boxShadow:"0 1px 4px rgba(15,32,68,.06)",
+                  borderLeft:`3px solid ${g.color}`, cursor:"pointer" }}
+                onClick={() => onSelectFolder(item.folder)}>
+                <div style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${item.done?"#2563eb":"#c2d0e8"}`,
+                  background: item.done?"#2563eb":"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {item.done && <span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
+                </div>
+                {item.starred && <span style={{ color:"#f59e0b", fontSize:11, flexShrink:0 }}>★</span>}
+                <span style={{ flex:1, fontSize:13.5, color: item.done?"#96acc8":"#1e3a6e",
+                  textDecoration: item.done?"line-through":"none",
+                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {item.title || "(제목 없음)"}
+                </span>
+                <span style={{ fontSize:11, color:g.color, fontWeight:700, flexShrink:0 }}>📅 {item.dueDate}</span>
+                {folder && <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0, maxWidth:80, overflow:"hidden", textOverflow:"ellipsis" }}>{folder.name}</span>}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TrashView({ items, onRestore, onPermDel, onEmpty }) {
   const [sel, setSel] = useState(new Set());
   const trash = items.filter(i => i.deletedAt);
@@ -1853,6 +2271,26 @@ function TrashView({ items, onRestore, onPermDel, onEmpty }) {
 // ─── FolderRow: hover-to-edit hint ───────────────────────
 function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focusNewId, setSidebarItems }) {
   const [hovered, setHovered] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
+
+  // 색상 팔레트
+  const COLORS = ["#94a3b8","#f87171","#fb923c","#facc15","#4ade80","#38bdf8","#818cf8","#f472b6","#a78bfa","#34d399"];
+  // 이모지 프리셋
+  const EMOJIS = ["","📁","💼","🏠","📚","🎯","⚡","🔧","🌟","💡","📝","🎨","🚀","💰","📊"];
+
+  const curColor = item.color || "#94a3b8";
+  const curEmoji = item.emoji || "";
+
+  useEffect(() => {
+    if (!showPicker) return;
+    const close = e => {
+      if (!pickerRef.current?.contains(e.target)) setShowPicker(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showPicker]);
+
   return (
     <div key={item.id} data-sortidx={index}
       style={{ ...NI, color: isActive?"#fff":"rgba(255,255,255,.6)",
@@ -1861,7 +2299,50 @@ function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focu
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => onSelect(item.id)}>
-      <span style={{ fontSize:11, width:16, color: isActive?"rgba(255,255,255,.7)":"rgba(255,255,255,.4)", flexShrink:0 }}>○</span>
+      {/* 폴더 아이콘 — 클릭해서 color/emoji 변경 */}
+      <span
+        title="색상·아이콘 변경"
+        style={{ fontSize: curEmoji ? 13 : 11, width:16, flexShrink:0,
+          color: curEmoji ? "inherit" : (isActive ? "rgba(255,255,255,.9)" : curColor),
+          cursor:"pointer", lineHeight:1 }}
+        onMouseDown={e => { e.stopPropagation(); setShowPicker(v=>!v); }}>
+        {curEmoji || "●"}
+      </span>
+
+      {/* 색상/이모지 피커 팝업 */}
+      {showPicker && (
+        <div ref={pickerRef}
+          style={{ position:"absolute", left:20, top:"100%", zIndex:9999,
+            background:"#1a2d54", borderRadius:12, padding:"10px 12px",
+            boxShadow:"0 8px 28px rgba(0,0,0,.4)", width:200, marginTop:2 }}
+          onMouseDown={e => e.stopPropagation()}>
+          {/* 색상 */}
+          <div style={{ fontSize:10, color:"rgba(255,255,255,.5)", marginBottom:6, letterSpacing:"1px", textTransform:"uppercase" }}>Color</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:10 }}>
+            {COLORS.map(c => (
+              <div key={c}
+                style={{ width:20, height:20, borderRadius:"50%", background:c, cursor:"pointer",
+                  border: curColor===c ? "2px solid #fff" : "2px solid transparent" }}
+                onMouseDown={() => setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i,color:c} : i))}/>
+            ))}
+          </div>
+          {/* 이모지 */}
+          <div style={{ fontSize:10, color:"rgba(255,255,255,.5)", marginBottom:6, letterSpacing:"1px", textTransform:"uppercase" }}>Icon</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+            {EMOJIS.map((em,idx) => (
+              <div key={idx}
+                style={{ width:24, height:24, borderRadius:5, display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize: em ? 14 : 11, cursor:"pointer",
+                  background: curEmoji===em ? "rgba(255,255,255,.2)" : "transparent",
+                  color:"rgba(255,255,255,.8)" }}
+                onMouseDown={() => { setSidebarItems(prev => prev.map(i => i.id===item.id ? {...i,emoji:em} : i)); }}>
+                {em || "—"}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {focusNewId === item.id
         ? <input data-focusid={item.id}
             value={item.name}
@@ -1870,7 +2351,6 @@ function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focu
             style={{ flex:1, fontSize:13.5, background:"transparent", border:"none", borderBottom:"1px solid rgba(255,255,255,.3)", outline:"none", color:"inherit", fontFamily:"inherit", fontWeight:500, minWidth:0 }} />
         : <span style={{ flex:1, fontSize:13.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.name}</span>
       }
-      {/* Edit hint — shows on hover */}
       {hovered && !isActive && (
         <span style={{ fontSize:10, color:"rgba(255,255,255,.3)", flexShrink:0, marginRight:2 }}>✎</span>
       )}
@@ -1992,6 +2472,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
         <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,.08)" }}>
           {[
             { id:NOTICE_ID,   label:"Notice",   icon:"★",  ac:"#fde68a",  ic:"rgba(255,220,80,.65)" },
+            { id:UPCOMING_ID, label:"Upcoming",  icon:"📅", ac:"#fecdd3",  ic:"rgba(251,113,133,.65)" },
             { id:CALENDAR_ID, label:"Calendar", icon:"◷",  ac:"#a5f3fc",  ic:"rgba(125,211,252,.65)" },
             { id:WORKLOG_ID,  label:"Worklog",  icon:"📋", ac:"#c4b5fd",  ic:"rgba(167,139,250,.7)" },
             { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
@@ -3664,7 +4145,8 @@ function AppInner() {
   const isTrash     = activeFolder === TRASH_ID;
   const isWorklog   = activeFolder === WORKLOG_ID;
   const isManual    = activeFolder === MANUAL_ID;
-  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual;
+  const isUpcoming  = activeFolder === UPCOMING_ID;
+  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual || isUpcoming;
   const liveItems   = items.filter(i => !i.deletedAt);
   const trashItems  = items.filter(i => !!i.deletedAt);
   const visibleItems = isNotice ? liveItems.filter(i => i.starred)
@@ -3672,8 +4154,9 @@ function AppInner() {
     : isTrash    ? trashItems
     : isWorklog  ? []
     : isManual   ? []
+    : isUpcoming ? []
     : liveItems.filter(i => i.folder === activeFolder);
-  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:folders.find(f => f.id===activeFolder);
+  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:isUpcoming?{name:"Upcoming"}:folders.find(f => f.id===activeFolder);
 
   useEffect(() => { setItems(prev => prev.filter(i => !i.deletedAt || daysAgo(i.deletedAt) < TRASH_DAYS)); }, [activeFolder]);
 
@@ -4076,7 +4559,7 @@ function AppInner() {
       allItems={items} allWorklogs={worklogs} />
   );
 
-  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":"";
+  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":isUpcoming?"📅 ":"";
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
@@ -4144,38 +4627,106 @@ function AppInner() {
                 {showGlobalSearch && (
                   <div style={{ position:"fixed", inset:0, background:"rgba(15,32,68,.35)", zIndex:700, display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:60 }}
                     onClick={() => { setShowGlobalSearch(false); setGlobalQuery(""); }}>
-                    <div style={{ background:"#fff", borderRadius:16, padding:20, width:"min(500px,90vw)", boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
+                    <div style={{ background:"#fff", borderRadius:16, padding:20, width:"min(560px,92vw)", boxShadow:"0 16px 48px rgba(15,32,68,.22)" }}
                       onClick={e => e.stopPropagation()}>
                       <input autoFocus
                         style={{ width:"100%", padding:"12px 16px", borderRadius:10, border:"1.5px solid #e0eaf8", fontSize:15, color:"#1e3a6e", outline:"none", fontFamily:"inherit", boxSizing:"border-box", marginBottom:12 }}
-                        placeholder="Search all notes..."
+                        placeholder="노트, Worklog, 마감기한 전체 검색..."
                         value={globalQuery}
                         onChange={e => setGlobalQuery(e.target.value)} />
                       {globalQuery.trim() && (() => {
                         const q = globalQuery.trim().toLowerCase();
-                        const results = liveItems.filter(i => (i.title||"").toLowerCase().includes(q) || (i.body||"").toLowerCase().includes(q));
-                        return results.length === 0
-                          ? <div style={{ textAlign:"center", color:"#94a3b8", padding:"20px 0", fontSize:13 }}>No results</div>
-                          : <div style={{ maxHeight:320, overflowY:"auto" }}>
-                              {results.map(item => {
-                                const folder = folders.find(f => f.id===item.folder);
-                                return (
-                                  <div key={item.id}
-                                    style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:9, cursor:"pointer", marginBottom:2 }}
-                                    onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
-                                    onMouseLeave={e => e.currentTarget.style.background="transparent"}
-                                    onClick={() => { if (folder) selectFolder(item.folder); setShowGlobalSearch(false); setGlobalQuery(""); }}>
-                                    <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, width:14 }}>
-                                      {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
-                                    </span>
-                                    <div style={{ flex:1, minWidth:0 }}>
-                                      <div style={{ fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(untitled)"}</div>
-                                      {folder && <div style={{ fontSize:11, color:"#94a3b8", marginTop:1 }}>{folder.name}</div>}
+                        // ① 노트 검색: title + body + dueDate
+                        const noteResults = liveItems.filter(i =>
+                          (i.title||"").toLowerCase().includes(q) ||
+                          (i.body||"").toLowerCase().includes(q) ||
+                          (i.dueDate||"").toLowerCase().includes(q) ||
+                          (i.tables||[]).some(t => t.rows?.some(r => r.some(c => (c.content||"").toLowerCase().includes(q))))
+                        );
+                        // ② Worklog 검색: keyPoint + details + notes + project
+                        const wlogResults = worklogs.filter(w =>
+                          (w.keyPoint||"").toLowerCase().includes(q) ||
+                          (w.details||"").toLowerCase().includes(q) ||
+                          (w.notes||"").toLowerCase().includes(q) ||
+                          (w.project||"").toLowerCase().includes(q) ||
+                          (w.date||"").toLowerCase().includes(q)
+                        );
+
+                        const hl = (text) => {
+                          if (!text) return "";
+                          const idx = text.toLowerCase().indexOf(q);
+                          if (idx < 0) return text.slice(0, 60);
+                          const start = Math.max(0, idx-15);
+                          const end = Math.min(text.length, idx+q.length+30);
+                          return (start>0?"…":"")+text.slice(start,end)+(end<text.length?"…":"");
+                        };
+
+                        const total = noteResults.length + wlogResults.length;
+                        if (total === 0) return <div style={{ textAlign:"center", color:"#94a3b8", padding:"20px 0", fontSize:13 }}>검색 결과 없음</div>;
+
+                        return (
+                          <div style={{ maxHeight:400, overflowY:"auto" }}>
+                            {/* 카운트 */}
+                            <div style={{ fontSize:11, color:"#94a3b8", marginBottom:8 }}>
+                              노트 {noteResults.length}개 · Worklog {wlogResults.length}개
+                            </div>
+                            {/* 노트 결과 */}
+                            {noteResults.map(item => {
+                              const folder = folders.find(f => f.id===item.folder);
+                              const snippet = hl(item.body?.replace(/<[^>]*>/g,"") || "");
+                              return (
+                                <div key={item.id}
+                                  style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 12px", borderRadius:9, cursor:"pointer", marginBottom:2 }}
+                                  onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
+                                  onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                                  onClick={() => {
+                                    selectFolder(item.folder);
+                                    setShowGlobalSearch(false); setGlobalQuery("");
+                                    // 해당 항목으로 스크롤
+                                    setTimeout(() => {
+                                      const el = document.querySelector(`[data-itemid="${item.id}"]`) || document.querySelector(`[data-todoitem="${item.id}"]`);
+                                      if (el) el.scrollIntoView({ behavior:"smooth", block:"center" });
+                                    }, 300);
+                                  }}>
+                                  <span style={{ fontSize:12, color:item.type==="header"?"#2563eb":item.type==="todo"?"#059669":"#8b5cf6", fontWeight:700, flexShrink:0, marginTop:2 }}>
+                                    {item.type==="header"?"▬":item.type==="todo"?"☐":"T"}
+                                  </span>
+                                  <div style={{ flex:1, minWidth:0 }}>
+                                    <div style={{ fontSize:13.5, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.title||"(untitled)"}</div>
+                                    {snippet && <div style={{ fontSize:11, color:"#6b8bb5", marginTop:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{snippet}</div>}
+                                    <div style={{ fontSize:10, color:"#94a3b8", marginTop:1, display:"flex", gap:8 }}>
+                                      {folder && <span>{folder.name}</span>}
+                                      {item.dueDate && <span style={{ color:"#ef4444" }}>📅 {item.dueDate}</span>}
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>;
+                                </div>
+                              );
+                            })}
+                            {/* Worklog 결과 */}
+                            {wlogResults.length > 0 && (
+                              <div style={{ fontSize:10, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"1px", margin:"8px 4px 4px" }}>Worklog</div>
+                            )}
+                            {wlogResults.map(w => (
+                              <div key={w.id}
+                                style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"9px 12px", borderRadius:9, cursor:"pointer", marginBottom:2 }}
+                                onMouseEnter={e => e.currentTarget.style.background="#f0f5ff"}
+                                onMouseLeave={e => e.currentTarget.style.background="transparent"}
+                                onClick={() => { selectFolder(WORKLOG_ID); setShowGlobalSearch(false); setGlobalQuery(""); }}>
+                                <span style={{ fontSize:12, flexShrink:0, marginTop:2 }}>📋</span>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:13, color:"#1e3a6e", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                    {w.keyPoint||"(내용 없음)"}
+                                  </div>
+                                  <div style={{ fontSize:10, color:"#94a3b8", marginTop:1, display:"flex", gap:8 }}>
+                                    <span>{w.date}</span>
+                                    {w.project && <span>{w.project}</span>}
+                                    {w.details && <span style={{ color:"#6b8bb5" }}>{hl(w.details)}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
                       })()}
                     </div>
                   </div>
@@ -4359,9 +4910,10 @@ function AppInner() {
         {/* Content area */}
         <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
-          {isCalendar && <CalendarView items={items} folders={folders} />}
+          {isCalendar && <CalendarView items={liveItems} folders={folders} accessToken={accessToken} onUpdate={upd} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {isManual && <ManualView isMobile={isMobile} />}
+          {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} />}
           {isNotice && (
             <>
               <NoticeView items={visibleItems} folders={folders} isMobile={isMobile} onUpdate={upd} onDelete={softDel} />
