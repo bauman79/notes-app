@@ -20,7 +20,7 @@ const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
 googleProvider.addScope("https://www.googleapis.com/auth/calendar");
-googleProvider.setCustomParameters({ prompt: "select_account" });
+googleProvider.setCustomParameters({ prompt: "consent", access_type: "offline" });
 const DRIVE_FILE_NAME  = "notes-app-data.json";
 
 // ─── Google Drive helpers ─────────────────────────────────
