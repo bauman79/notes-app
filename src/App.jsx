@@ -127,6 +127,7 @@ async function gcalFetch(token, timeMin, timeMax) {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (r.status === 401) throw new Error("TOKEN_EXPIRED");
+  if (r.status === 403) throw new Error("CALENDAR_PERMISSION");  // Calendar scope 없음
   if (!r.ok) throw new Error(`gcal fetch ${r.status}`);
   const data = await r.json();
   return data.items || [];
@@ -1226,8 +1227,9 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
       const evts = await gcalFetch(accessToken, tMin, tMax);
       setGcalEvents(evts);
     } catch(e) {
-      if (e.message === "TOKEN_EXPIRED") setGcalError("토큰 만료 — 재로그인 필요");
-      else setGcalError("Google Calendar 연동 오류");
+      if (e.message === "TOKEN_EXPIRED") setGcalError("TOKEN_EXPIRED");
+      else if (e.message === "CALENDAR_PERMISSION") setGcalError("CALENDAR_PERMISSION");
+      else setGcalError("GCAL_ERROR");
     } finally { setGcalLoading(false); }
   };
 
@@ -1364,7 +1366,17 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
           onClick={()=>{setCurYear(now.getFullYear());setCurMonth(now.getMonth());}}>Today</button>
         <div style={{flex:1}}/>
         {gcalLoading && <span style={{fontSize:11,color:"#6b8bb5"}}>📅 로딩 중...</span>}
-        {gcalError  && <span style={{fontSize:11,color:"#ef4444"}}>{gcalError}</span>}
+        {gcalError === "CALENDAR_PERMISSION" && (
+          <span style={{fontSize:11,color:"#f59e0b",fontWeight:600}}>
+            ⚠️ Calendar 권한 없음 — 로그아웃 후 재로그인 필요
+          </span>
+        )}
+        {gcalError === "TOKEN_EXPIRED" && (
+          <span style={{fontSize:11,color:"#ef4444"}}>❌ 토큰 만료 — 재로그인 필요</span>
+        )}
+        {gcalError === "GCAL_ERROR" && (
+          <span style={{fontSize:11,color:"#ef4444"}}>❌ Google Calendar 오류</span>
+        )}
         {!accessToken && <span style={{fontSize:11,color:"#94a3b8"}}>Google 로그인 시 일정 연동됩니다</span>}
         {accessToken && !gcalLoading && !gcalError && (
           <span style={{fontSize:11,color:"#059669"}}>✅ Google Calendar 연동됨 ({gcalEvents.length}개)</span>
@@ -1374,7 +1386,23 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
         </button>
       </div>
 
-      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",overflow:"hidden",flexDirection:"column"}}>
+        {/* Calendar 권한 없음 안내 배너 */}
+        {gcalError === "CALENDAR_PERMISSION" && (
+          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,
+            padding:"12px 16px",margin:"8px 12px 0",flexShrink:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:4}}>
+              ⚠️ Google Calendar 권한이 없습니다
+            </div>
+            <div style={{fontSize:12,color:"#78350f",lineHeight:1.6}}>
+              기존 로그인에는 Calendar 권한이 포함되지 않았습니다.<br/>
+              <b>1.</b> 사이드바 하단 <b>Log out</b> 클릭<br/>
+              <b>2.</b> <b>Sign in with Google</b> 으로 재로그인<br/>
+              <b>3.</b> Google 권한 팝업에서 <b>Calendar 허용</b> 체크
+            </div>
+          </div>
+        )}
+        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* 월간 그리드 */}
         {viewMode==="month" && (
           <div style={{flex:1,overflowY:"auto",padding:"8px 12px"}}>
@@ -1535,6 +1563,8 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2178,23 +2208,30 @@ function UpcomingView({ items, folders, onSelectFolder }) {
             const folder = folders.find(f => f.id===item.folder);
             return (
               <div key={item.id}
-                style={{ display:"flex", alignItems:"center", gap:10, background:"#fff",
+                style={{ background:"#fff",
                   borderRadius:10, padding:"10px 14px", marginBottom:4,
                   boxShadow:"0 1px 4px rgba(15,32,68,.06)",
                   borderLeft:`3px solid ${g.color}`, cursor:"pointer" }}
                 onClick={() => onSelectFolder(item.folder)}>
-                <div style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${item.done?"#2563eb":"#c2d0e8"}`,
-                  background: item.done?"#2563eb":"transparent", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  {item.done && <span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
+                {/* 윗줄: 체크박스 + 별표 + 제목 (줄바꿈 허용) */}
+                <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:4 }}>
+                  <div style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${item.done?"#2563eb":"#c2d0e8"}`,
+                    background: item.done?"#2563eb":"transparent", flexShrink:0, marginTop:2,
+                    display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {item.done && <span style={{ color:"#fff", fontSize:10, fontWeight:700 }}>✓</span>}
+                  </div>
+                  {item.starred && <span style={{ color:"#f59e0b", fontSize:11, flexShrink:0, marginTop:2 }}>★</span>}
+                  <span style={{ flex:1, fontSize:13.5, color: item.done?"#96acc8":"#1e3a6e",
+                    textDecoration: item.done?"line-through":"none",
+                    wordBreak:"break-word", lineHeight:1.5 }}>
+                    {item.title || "(제목 없음)"}
+                  </span>
                 </div>
-                {item.starred && <span style={{ color:"#f59e0b", fontSize:11, flexShrink:0 }}>★</span>}
-                <span style={{ flex:1, fontSize:13.5, color: item.done?"#96acc8":"#1e3a6e",
-                  textDecoration: item.done?"line-through":"none",
-                  overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {item.title || "(제목 없음)"}
-                </span>
-                <span style={{ fontSize:11, color:g.color, fontWeight:700, flexShrink:0 }}>📅 {item.dueDate}</span>
-                {folder && <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0, maxWidth:80, overflow:"hidden", textOverflow:"ellipsis" }}>{folder.name}</span>}
+                {/* 아랫줄: 날짜 + 폴더명 */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, paddingLeft:24, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:11, color:g.color, fontWeight:700, flexShrink:0 }}>📅 {item.dueDate}</span>
+                  {folder && <span style={{ fontSize:11, color:"#94a3b8", flexShrink:0 }}>{folder.name}</span>}
+                </div>
               </div>
             );
           })}
