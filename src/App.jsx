@@ -2008,50 +2008,53 @@ function ManualView({ isMobile }) {
   const [lang, setLang] = useState("ko");
   const C = MANUAL_CONTENT[lang];
 
-  // PDF 생성 (html2canvas 없이 CSS print 방식)
+  // PDF 생성 (Blob URL 방식 — Rolldown 파싱 안전)
   const handlePdfDownload = () => {
-    const printContent = document.getElementById("manual-print-area");
-    if (!printContent) return;
-    const w = window.open("", "_blank", "width=900,height=1200");
-    w.document.write(`
-      <!DOCTYPE html><html><head>
-      <meta charset="UTF-8">
-      <title>theNOTES Manual (${C.lang})</title>
-      <style>
-        body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #1e3a6e; line-height: 1.7; }
-        h1 { font-size: 26px; color: #2563eb; margin-bottom: 6px; }
-        .sub { font-size: 14px; color: #6b8bb5; margin-bottom: 36px; }
-        .section { margin-bottom: 32px; page-break-inside: avoid; }
-        .section-title { font-size: 17px; font-weight: 700; color: #1e3a6e; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-        .desc { font-size: 13.5px; color: #4b6fa8; margin-bottom: 10px; }
-        .tips li { font-size: 13px; color: #374151; margin-bottom: 5px; }
-        .ui-box { background: #f0f5ff; border-radius: 8px; padding: 12px 16px; margin-top: 10px; font-family: monospace; font-size: 12px; color: #374151; }
-        .ui-label { font-size: 11px; font-weight: 700; color: #6b8bb5; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-        .ui-item { padding: 3px 0; border-bottom: 1px solid #e0eaf8; }
-        .ui-item:last-child { border-bottom: none; }
-        hr { border: none; border-top: 1px solid #e0eaf8; margin: 28px 0; }
-        @media print { body { margin: 20px; } }
-      </style></head><body>
-      <h1>📖 ${C.title}</h1>
-      <div class="sub">${C.subtitle}</div>
-      ${C.sections.map((s, i) => `
-        ${i > 0 ? "<hr>" : ""}
-        <div class="section">
-          <div class="section-title">${s.icon} ${s.title}</div>
-          <div class="desc">${s.desc}</div>
-          <ul class="tips">${s.tips.map(t => `<li>${t}</li>`).join("")}</ul>
-          <div class="ui-box">
-            <div class="ui-label">${s.ui.label}</div>
-            ${s.ui.items.map(item => `<div class="ui-item">${item}</div>`).join("")}
-          </div>
-        </div>
-      `).join("")}
-      <hr>
-      <div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:16px">theNOTES · BAUMAN · duholee79@gmail.com</div>
-      </body></html>
-    `);
-    w.document.close();
-    setTimeout(() => { w.print(); }, 400);
+    const sectionsHtml = C.sections.map((s, i) => [
+      i > 0 ? "<hr>" : "",
+      '<div class="section">',
+      `<div class="section-title">${s.icon} ${s.title}</div>`,
+      `<div class="desc">${s.desc}</div>`,
+      `<ul class="tips">${s.tips.map(t => `<li>${t}</li>`).join("")}</ul>`,
+      '<div class="ui-box">',
+      `<div class="ui-label">${s.ui.label}</div>`,
+      s.ui.items.map(item => `<div class="ui-item">${item}</div>`).join(""),
+      "</div></div>",
+    ].join("")).join("");
+
+    const printScript = "window.onload=()=>{setTimeout(()=>window.print(),400);}";
+    const html = [
+      "<!DOCTYPE html><html><head>",
+      '<meta charset="UTF-8">',
+      `<title>theNOTES Manual (${C.lang})</title>`,
+      "<style>",
+      "body{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;margin:40px;color:#1e3a6e;line-height:1.7;}",
+      "h1{font-size:26px;color:#2563eb;margin-bottom:6px;}",
+      ".sub{font-size:14px;color:#6b8bb5;margin-bottom:36px;}",
+      ".section{margin-bottom:32px;page-break-inside:avoid;}",
+      ".section-title{font-size:17px;font-weight:700;color:#1e3a6e;margin-bottom:8px;display:flex;align-items:center;gap:8px;}",
+      ".desc{font-size:13.5px;color:#4b6fa8;margin-bottom:10px;}",
+      ".tips li{font-size:13px;color:#374151;margin-bottom:5px;}",
+      ".ui-box{background:#f0f5ff;border-radius:8px;padding:12px 16px;margin-top:10px;font-family:monospace;font-size:12px;color:#374151;}",
+      ".ui-label{font-size:11px;font-weight:700;color:#6b8bb5;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}",
+      ".ui-item{padding:3px 0;border-bottom:1px solid #e0eaf8;}",
+      ".ui-item:last-child{border-bottom:none;}",
+      "hr{border:none;border-top:1px solid #e0eaf8;margin:28px 0;}",
+      "@media print{body{margin:20px;}}",
+      "</style></head><body>",
+      `<h1>📖 ${C.title}</h1>`,
+      `<div class="sub">${C.subtitle||""}</div>`,
+      sectionsHtml,
+      "<hr>",
+      '<div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:16px">theNOTES · BAUMAN · duholee79@gmail.com</div>',
+      `<script>` + printScript + `</` + `script>`,
+      "</body></html>",
+    ].join("\n");
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "width=900,height=1200");
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   return (
@@ -4292,7 +4295,6 @@ function AppInner() {
     setSelected(new Set()); setSelMode(false);
   };
   const shareSel = () => {
-    // 화면 표시 순서대로 정렬 (visibleItems 순서 기준)
     const orderedIds = visibleItems.map(i => i.id).filter(id => selected.has(id));
     const selItems = orderedIds.map(id => items.find(i => i.id === id)).filter(Boolean);
     if (!selItems.length) return;
@@ -4300,69 +4302,56 @@ function AppInner() {
     const folderName = activeF?.name || "Notes";
     const today = mkDate();
 
-    // HTML 생성
     const itemsHtml = selItems.map(item => {
       if (item.type === T.HEADER) {
-        return `
-          <div style="margin:18px 0 8px;padding:8px 14px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;">
-            <span style="font-size:15px;font-weight:700;color:#1a3a78;">${item.title||""}</span>
-          </div>`;
+        return `<div style="margin:18px 0 8px;padding:8px 14px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;"><span style="font-size:15px;font-weight:700;color:#1a3a78;">${item.title||""}</span></div>`;
       }
       if (item.type === T.TODO) {
         const check = item.done
-          ? `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:#2563eb;text-align:center;line-height:16px;color:#fff;font-size:11px;font-weight:700;margin-right:8px;flex-shrink:0;">✓</span>`
-          : `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;border:1.5px solid #c2d0e8;margin-right:8px;flex-shrink:0;"></span>`;
+          ? `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:#2563eb;text-align:center;line-height:16px;color:#fff;font-size:11px;font-weight:700;margin-right:8px;">✓</span>`
+          : `<span style="display:inline-block;width:16px;height:16px;border-radius:4px;border:1.5px solid #c2d0e8;margin-right:8px;"></span>`;
         const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
         const due = item.dueDate ? `<span style="color:#ef4444;font-size:11px;margin-left:8px;">📅 ${item.dueDate}</span>` : "";
-        return `
-          <div style="display:flex;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f4fa;">
-            ${check}
-            <span style="font-size:13.5px;color:${item.done?"#96acc8":"#1e3a6e"};${item.done?"text-decoration:line-through;":""}flex:1;">${star}${item.title||""}${due}</span>
-            <span style="font-size:10px;color:#a8bcd8;margin-left:8px;white-space:nowrap;">${item.createdAt||""}</span>
-          </div>`;
+        return `<div style="display:flex;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f4fa;">${check}<span style="font-size:13.5px;color:${item.done?"#96acc8":"#1e3a6e"};${item.done?"text-decoration:line-through;":""}flex:1;">${star}${item.title||""}${due}</span><span style="font-size:10px;color:#a8bcd8;margin-left:8px;white-space:nowrap;">${item.createdAt||""}</span></div>`;
       }
       if (item.type === T.TEXT) {
         const body = item.body ? `<div style="font-size:12.5px;color:#374151;line-height:1.7;margin-top:4px;">${item.body}</div>` : "";
         const star = item.starred ? `<span style="color:#f59e0b;margin-right:4px;">★</span>` : "";
-        return `
-          <div style="margin-bottom:12px;padding:10px 14px;background:#fff;border-radius:8px;border-left:3px solid ${item.starred?"#f59e0b":"#2563eb"};">
-            <div style="font-size:14px;font-weight:600;color:#0f2044;margin-bottom:4px;">${star}${item.title||""}</div>
-            ${body}
-          </div>`;
+        return `<div style="margin-bottom:12px;padding:10px 14px;background:#fff;border-radius:8px;border-left:3px solid ${item.starred?"#f59e0b":"#2563eb"};"><div style="font-size:14px;font-weight:600;color:#0f2044;margin-bottom:4px;">${star}${item.title||""}</div>${body}</div>`;
       }
       return "";
     }).join("");
 
-    const w = window.open("", "_blank", "width=794,height=1000");
-    w.document.write(`<!DOCTYPE html><html><head>
-      <meta charset="UTF-8">
-      <title>${folderName} — ${today}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif; color: #1e3a6e; padding: 40px 48px; max-width: 700px; margin: 0 auto; }
-        .header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 24px; }
-        .folder { font-size: 20px; font-weight: 800; color: #2563eb; }
-        .meta { font-size: 11px; color: #94a3b8; text-align: right; }
-        .count { font-size: 11px; color: #6b8bb5; margin-top: 2px; }
-        .footer { margin-top: 32px; padding-top: 10px; border-top: 1px solid #e0eaf8; font-size: 10px; color: #94a3b8; text-align: center; }
-        @media print {
-          body { padding: 20px 28px; }
-          @page { margin: 16mm 14mm; size: A4; }
-        }
-      </style>
-    </head><body>
-      <div class="header">
-        <div>
-          <div class="folder">📁 ${folderName}</div>
-          <div class="count">${selItems.length}개 항목</div>
-        </div>
-        <div class="meta">theNOTES<br>${today}</div>
-      </div>
-      ${itemsHtml}
-      <div class="footer">theNOTES · BAUMAN · Generated ${today}</div>
-      <script>window.onload = () => { setTimeout(() => window.print(), 300); }</scr"+"ipt>
-    </body></html>`);
-    w.document.close();
+    // Blob URL 방식 — document.write 미사용으로 Rolldown 파싱 안전
+    const printScript = "window.onload=()=>{setTimeout(()=>window.print(),300);}";
+    const html = [
+      "<!DOCTYPE html><html><head>",
+      '<meta charset="UTF-8">',
+      `<title>${folderName} — ${today}</title>`,
+      "<style>",
+      "* { box-sizing: border-box; margin: 0; padding: 0; }",
+      "body { font-family: 'Helvetica Neue', 'Segoe UI', Arial, sans-serif; color: #1e3a6e; padding: 40px 48px; max-width: 700px; margin: 0 auto; }",
+      ".header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 24px; }",
+      ".folder { font-size: 20px; font-weight: 800; color: #2563eb; }",
+      ".meta { font-size: 11px; color: #94a3b8; text-align: right; }",
+      ".count { font-size: 11px; color: #6b8bb5; margin-top: 2px; }",
+      ".footer { margin-top: 32px; padding-top: 10px; border-top: 1px solid #e0eaf8; font-size: 10px; color: #94a3b8; text-align: center; }",
+      "@media print { body { padding: 20px 28px; } @page { margin: 16mm 14mm; size: A4; } }",
+      "</style></head><body>",
+      '<div class="header">',
+      `<div><div class="folder">📁 ${folderName}</div><div class="count">${selItems.length}개 항목</div></div>`,
+      `<div class="meta">theNOTES<br>${today}</div>`,
+      "</div>",
+      itemsHtml,
+      `<div class="footer">theNOTES · BAUMAN · Generated ${today}</div>`,
+      `<script>` + printScript + `</` + `script>`,
+      "</body></html>",
+    ].join("\n");
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, "_blank", "width=794,height=1000");
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 
     setSelected(new Set());
     setSelMode(false);
