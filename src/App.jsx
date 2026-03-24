@@ -3778,6 +3778,12 @@ function AppInner() {
       return c ? JSON.parse(c) : initWorklogs;
     } catch { return initWorklogs; }
   });
+  const [calEvents, setCalEvents] = useState(() => {
+    try {
+      const c = localStorage.getItem("notes_calevents");
+      return c ? JSON.parse(c) : [];
+    } catch { return []; }
+  });
   const [activeFolder, setActiveFolder] = useState("f1");
   const activeFolderRef = useRef("f1"); // 항상 최신 activeFolder 참조 (stale closure 방지)
   const [editingFN,    setEditingFN]    = useState(false);
@@ -4028,6 +4034,7 @@ function AppInner() {
           if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
           if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
           if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
+          if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
           setSyncStatus("saved");
         }
       }
@@ -4116,7 +4123,7 @@ function AppInner() {
       try {
         if (saveTimer.current) clearTimeout(saveTimer.current);
         setSyncStatus("saving");
-        await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
+        await gdriveSave(accessToken, { sidebarItems, items, worklogs, calEvents }, driveFileId);
         setSyncStatus("saved");
       } catch (e) { console.warn("Pre-logout save failed:", e); }
     }
@@ -4149,6 +4156,9 @@ function AppInner() {
   useEffect(() => {
     try { localStorage.setItem("notes_worklogs", JSON.stringify(worklogs)); } catch {}
   }, [worklogs]);
+  useEffect(() => {
+    try { localStorage.setItem("notes_calevents", JSON.stringify(calEvents)); } catch {}
+  }, [calEvents]);
 
   // ── Session restore on page reload ───────────────────────
   // Firebase Auth 상태가 먼저 확인된 후 Drive token으로 데이터 복원
@@ -4184,6 +4194,7 @@ function AppInner() {
             if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
             if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
             if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
+          if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
           }
           setSyncStatus("saved");
         }
@@ -4213,7 +4224,7 @@ function AppInner() {
       if (isRestoring.current) return; // 타이머 대기 중 restore 시작된 경우 재확인
       setSyncStatus("saving");
       try {
-        const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs }, driveFileId);
+        const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs, calEvents }, driveFileId);
         if (savedId && !driveFileId) setDriveFileId(savedId);
         setSyncStatus("saved");
       } catch (e) {
@@ -4227,7 +4238,7 @@ function AppInner() {
       }
     }, 2000);
     return () => clearTimeout(saveTimer.current);
-  }, [sidebarItems, items, worklogs, accessToken, dataLoaded]);
+  }, [sidebarItems, items, worklogs, calEvents, accessToken, dataLoaded]);
 
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
@@ -4590,7 +4601,7 @@ function AppInner() {
         {/* Content area */}
         <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
-          {isCalendar && <CalendarView items={liveItems} folders={folders} accessToken={accessToken} onUpdate={upd} />}
+          {isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {isManual && <ManualView isMobile={isMobile} />}
           {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} />}
