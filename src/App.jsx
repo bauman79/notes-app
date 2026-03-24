@@ -3326,7 +3326,6 @@ function TableBlock({ table, onUpdate, onDelete }) {
     </div>
   );
 }
-}
 const tbBtn  = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,color:"#4b6fa8",fontSize:11.5,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:600};
 const tbIcon = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:7,color:"#4b6fa8",cursor:"pointer",fontFamily:"inherit",padding:0,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
 
