@@ -337,20 +337,23 @@ function useIsMobile() {
 function RichText({ html, onChange, placeholder, style }) {
   const ref = useRef(null);
   const containerRef = useRef(null);
+  const composingRef = useRef(false); // 한국어/한자 조합 입력 중 플래그
   const { tb, checkSel, exec: execBase, tbRef, hide } = useFloatingToolbar(containerRef);
 
   // html prop이 바뀔 때마다 DOM 업데이트 (Drive 동기화 등)
-  // 단, 현재 이 편집기에 포커스가 있으면(타이핑 중) 건드리지 않음
+  // 포커스 중이거나 조합 중이면 절대 건드리지 않음
   useEffect(() => {
     if (!ref.current) return;
+    if (composingRef.current) return; // 한국어 조합 중 보호
     if (ref.current.contains(document.activeElement)) return; // 타이핑 중 보호
-    if (ref.current.innerHTML !== (html || "")) {
-      ref.current.innerHTML = html || "";
+    const current = ref.current.innerHTML;
+    const next = html || "";
+    if (current !== next) {
+      ref.current.innerHTML = next;
     }
   }, [html]);
 
   const exec = (cmd, val) => {
-    // Do NOT call focus() here — e.preventDefault() on toolbar mousedown keeps selection alive
     execBase(cmd, val);
     onChange?.(ref.current?.innerHTML || "");
   };
@@ -362,7 +365,12 @@ function RichText({ html, onChange, placeholder, style }) {
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        onInput={() => onChange?.(ref.current.innerHTML)}
+        onCompositionStart={() => { composingRef.current = true; }}
+        onCompositionEnd={e => {
+          composingRef.current = false;
+          onChange?.(ref.current.innerHTML);
+        }}
+        onInput={() => { if (!composingRef.current) onChange?.(ref.current.innerHTML); }}
         onMouseUp={checkSel}
         onKeyUp={checkSel}
         onBlur={hide}
@@ -2378,8 +2386,12 @@ const mBtnP  = { padding:"10px 20px", borderRadius:10, border:"none", background
 
 
 // ─── Table helpers ────────────────────────────────────────
-const mkCell = (content="",colspan=1,rowspan=1,bg=null) => ({ id:`tc${Math.random().toString(36).slice(2,7)}`, content, colspan, rowspan, bg });
-const mkTable = (rows=2,cols=3) => ({ id:`tbl${nextId++}`, rows: Array(rows).fill(0).map(()=>Array(cols).fill(0).map(()=>mkCell())) });
+const mkCell  = (content="",colspan=1,rowspan=1,bg=null) => ({ id:`tc${Math.random().toString(36).slice(2,7)}`, content, colspan, rowspan, bg });
+const mkTable = (rows=2,cols=3) => ({
+  id: `tbl${nextId++}`,
+  colWidths: Array(cols).fill(Math.floor(100/cols)),
+  rows: Array(rows).fill(0).map(()=>Array(cols).fill(0).map(()=>mkCell()))
+});
 
 // ─── TableBlock ───────────────────────────────────────────
 // ─── RichTableCell: contentEditable cell with floating toolbar ──
@@ -2470,14 +2482,56 @@ function RichTableCell({ content, onChange, disabled }) {
 }
 
 function TableBlock({ table, onUpdate, onDelete }) {
-  // mode: null | "merge" | "split" | "color"
   const [mode,       setMode]     = useState(null);
-  const [selCells,   setSelCells] = useState(new Set()); // "r,c"
-  const [pendingBg,  setPendingBg] = useState(null); // selected color in color mode
+  const [selCells,   setSelCells] = useState(new Set());
+  const [pendingBg,  setPendingBg] = useState(null);
 
   const rows    = table.rows;
   const numCols = rows[0]?.length || 0;
   const key     = (r,c) => `${r},${c}`;
+
+  // ─── 컬럼 폭 (비율 %, 기본 균등 분배) ───────────────────
+  const colWidths = table.colWidths || Array(numCols).fill(Math.floor(100/numCols));
+  const tableRef  = useRef(null);
+  const resizingRef = useRef(null); // { colIdx, startX, startWidths }
+
+  const onResizeStart = (e, colIdx) => {
+    if (mode) return; // 편집 모드 중엔 비활성
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX ?? e.touches?.[0]?.clientX;
+    resizingRef.current = { colIdx, startX, startWidths: [...colWidths] };
+
+    const onMove = (ev) => {
+      const { colIdx: ci, startX: sx, startWidths: sw } = resizingRef.current;
+      const dx = (ev.clientX ?? ev.touches?.[0]?.clientX) - sx;
+      const tableW = tableRef.current?.offsetWidth || 600;
+      const dPct = (dx / tableW) * 100;
+      const newWidths = [...sw];
+      // 최소 5% 보장, 인접 컬럼에서 폭을 빼옴
+      const nextCol = ci + 1;
+      if (nextCol < newWidths.length) {
+        const delta = Math.max(-(sw[ci] - 5), Math.min(sw[nextCol] - 5, dPct));
+        newWidths[ci]      = sw[ci]      + delta;
+        newWidths[nextCol] = sw[nextCol] - delta;
+      } else {
+        newWidths[ci] = Math.max(5, sw[ci] + dPct);
+      }
+      onUpdate({ colWidths: newWidths });
+    };
+
+    const onUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onUp);
+  };
 
   // Check if a cell is merged (colspan>1 or rowspan>1)
   const isMerged = (cell) => (cell.colspan||1) > 1 || (cell.rowspan||1) > 1;
@@ -2552,10 +2606,17 @@ function TableBlock({ table, onUpdate, onDelete }) {
     if (rows.length<=1) return;
     onUpdate({ rows: rows.filter((_,i)=>i!==rows.length-1) });
   };
-  const addCol = () => onUpdate({ rows: rows.map(row=>[...row,mkCell()]) });
+  const addCol = () => {
+    const newCols = numCols + 1;
+    const newW = Math.floor(100 / newCols);
+    const newWidthsArr = [...Array(newCols).fill(newW)];
+    onUpdate({ rows: rows.map(row=>[...row,mkCell()]), colWidths: newWidthsArr });
+  };
   const delCol = () => {
     if (numCols<=1) return;
-    onUpdate({ rows: rows.map(row=>row.filter((_,i)=>i!==numCols-1)) });
+    const newCols = numCols - 1;
+    const newW = Math.floor(100 / newCols);
+    onUpdate({ rows: rows.map(row=>row.filter((_,i)=>i!==numCols-1)), colWidths: Array(newCols).fill(newW) });
   };
 
   const applyBg = () => {
@@ -2690,7 +2751,36 @@ function TableBlock({ table, onUpdate, onDelete }) {
 
       {/* Table */}
       <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",fontSize:13}}>
+        <table ref={tableRef} style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",fontSize:13}}>
+          <colgroup>
+            {colWidths.map((w, ci) => (
+              <col key={ci} style={{width:`${w}%`}} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {colWidths.map((_, ci) => (
+                <th key={ci} style={{padding:0,border:"none",position:"relative",height:0}}>
+                  {/* 컬럼 우측 경계 드래그 핸들 (마지막 컬럼 제외) */}
+                  {ci < colWidths.length - 1 && (
+                    <div
+                      title="드래그하여 폭 조절"
+                      style={{
+                        position:"absolute", right:-3, top:0, bottom:0, width:6,
+                        cursor:"col-resize", zIndex:10,
+                        background:"transparent",
+                        borderRight: mode ? "none" : "2px solid transparent",
+                      }}
+                      onMouseDown={e => onResizeStart(e, ci)}
+                      onTouchStart={e => onResizeStart(e, ci)}
+                      onMouseEnter={e => { if (!mode) e.currentTarget.style.borderRight="2px solid #93c5fd"; }}
+                      onMouseLeave={e => e.currentTarget.style.borderRight="2px solid transparent"}
+                    />
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {rows.map((row,ri)=>(
               <tr key={ri}>
@@ -2735,7 +2825,7 @@ function TableBlock({ table, onUpdate, onDelete }) {
           </tbody>
         </table>
       </div>
-      {!mode && <div style={{fontSize:10,color:"#b0c4de",marginTop:4}}>Select cells to apply color (Shift/Cmd for multiple)</div>}
+      {!mode && <div style={{fontSize:10,color:"#b0c4de",marginTop:4}}>Select cells to apply color (Shift/Cmd for multiple) · 컬럼 경계를 드래그하면 폭을 조절할 수 있습니다</div>}
     </div>
   );
 }
@@ -3039,8 +3129,11 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
 
   return (
     <div ref={containerRef}>
-      {sections.map((sec, si) => (
-        <div key={sec.header?.id || `pre-${si}`}>
+      {sections.map((sec, si) => {
+        // 안정적인 key: header가 있으면 header.id, 없으면 첫 번째 child의 id 사용 (인덱스 기반 key 금지)
+        const secKey = sec.header?.id || sec.children[0]?.item.id || `pre-${si}`;
+        return (
+        <div key={secKey}>
           {sec.header && (
             <div data-sortidx={sec.hIdx} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2, marginTop:12, width:"100%", boxSizing:"border-box", overflow:"hidden" }}>
               {selMode && (
@@ -3098,7 +3191,8 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
             </div>
           ))}
         </div>
-      ))}
+        );
+      })}
       {/* ── Completed section ── */}
       {doneTodos.length > 0 && (
         <CompletedSection doneTodos={doneTodos} upd={upd} softDel={softDel} isMobile={isMobile} />
