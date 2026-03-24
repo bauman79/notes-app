@@ -3815,22 +3815,34 @@ function AppInner() {
     }).catch(e => console.warn("Redirect result error:", e));
   }, []);
 
-  // ─── Firebase Auth state listener + silent token refresh ──
+  // ─── Firebase Auth state listener (ArchCalc 패턴 통합) ──
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
-      if (!fbUser) return;
+      if (!fbUser) {
+        // Firebase가 세션 만료 또는 로그아웃을 감지 — 상태 동기화
+        const hadUser = localStorage.getItem("guser");
+        if (hadUser) {
+          // 예상치 못한 Firebase 로그아웃 → Drive token도 클리어, 재로그인 안내
+          localStorage.removeItem("gtoken");
+          localStorage.removeItem("gtoken_expiry");
+          localStorage.removeItem("guser");
+          setUser(null);
+          setAccessToken(null);
+          setSyncStatus("error");
+        }
+        return;
+      }
+      // fbUser 있음 — Drive token 유효성 확인 후 user 정보 업데이트
       const storedToken = localStorage.getItem("gtoken");
-      if (!storedToken) return;
-      // 토큰 만료 체크 — 만료됐거나 5분 이내 만료 예정이면 재로그인 안내
+      if (!storedToken) return; // Drive token 없으면 무시 (로그인 후 handleLoginResult가 처리)
       const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
       if (expiry && Date.now() > expiry - 300000) {
-        // 만료 임박 — 사용자에게 재로그인 안내 (popup 없이 강제 로그아웃 안 함)
+        // Drive token 만료 임박 — error 표시만 (강제 로그아웃 안 함)
         setSyncStatus("error");
-        console.warn("Token 만료 임박 — 재로그인 필요");
         return;
       }
       try {
-        await fbUser.getIdToken(true);
+        await fbUser.getIdToken(true); // Firebase ID token refresh
         const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
         setUser(userInfo);
         localStorage.setItem("guser", JSON.stringify(userInfo));
@@ -3838,7 +3850,7 @@ function AppInner() {
         console.warn("Auth state error:", e);
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribe(); // ← cleanup 필수 (없으면 로그인 상태 불안정)
   }, []);
 
   const handleLogout = async () => {
@@ -3882,11 +3894,27 @@ function AppInner() {
   }, [worklogs]);
 
   // ── Session restore on page reload ───────────────────────
+  // Firebase Auth 상태가 먼저 확인된 후 Drive token으로 데이터 복원
   useEffect(() => {
     const savedToken = localStorage.getItem("gtoken");
     const savedUser  = localStorage.getItem("guser");
-    if (!savedToken || !savedUser) return;
-    isRestoring.current = true; // block auto-save during restore
+    // 두 가지 모두 있어야 복원 시도
+    if (!savedToken || !savedUser) {
+      setDataLoaded(true); // 토큰 없으면 즉시 로드 완료로 처리
+      return;
+    }
+
+    // 만료된 token이면 복원 시도 안 함
+    const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
+    if (expiry && Date.now() > expiry) {
+      localStorage.removeItem("gtoken");
+      localStorage.removeItem("gtoken_expiry");
+      setSyncStatus("error");
+      setDataLoaded(true); // 만료돼도 로드 완료 처리
+      return;
+    }
+
+    isRestoring.current = true;
     setAccessToken(savedToken);
     setUser(JSON.parse(savedUser));
     (async () => {
@@ -3904,8 +3932,9 @@ function AppInner() {
         }
       } catch(e) {
         if (e.message === "TOKEN_EXPIRED") {
-          // 토큰 만료 — 강제 로그아웃 하지 않고 재로그인 안내만
-          // (로컬 데이터는 유지, 사용자가 직접 재로그인할 때까지 오프라인 모드로 유지)
+          // Drive token 만료 — localStorage 정리 후 재로그인 안내
+          localStorage.removeItem("gtoken");
+          localStorage.removeItem("gtoken_expiry");
           setSyncStatus("error");
           console.warn("Token expired — please re-login to sync.");
         } else {
@@ -3914,7 +3943,7 @@ function AppInner() {
         }
       } finally {
         setDataLoaded(true);
-        setTimeout(() => { isRestoring.current = false; }, 2500); // React 렌더링 완료 후 여유있게 해제
+        setTimeout(() => { isRestoring.current = false; }, 2500);
       }
     })();
   }, []);
