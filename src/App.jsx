@@ -1526,7 +1526,7 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
                 rows={3}
                 style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1.5px solid #e0eaf8",fontSize:13,color:"#1e3a6e",outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
             </div>
-            <div style={{display:"flex",gap:8"}}>
+            <div style={{display:"flex",gap:8}}>
               <button style={{flex:1,padding:"9px",borderRadius:9,border:"none",background:"#2563eb",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
                 onClick={updateGCalEvent}>저장</button>
               <button style={{flex:1,padding:"9px",borderRadius:9,border:"1px solid #e0eaf8",background:"#fff",color:"#6b7280",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}
@@ -2963,88 +2963,83 @@ function RichTableCell({ content, onChange, disabled }) {
 }
 
 function TableBlock({ table, onUpdate, onDelete }) {
-  const [mode,       setMode]     = useState(null);
-  const [selCells,   setSelCells] = useState(new Set());
-  const [pendingBg,  setPendingBg] = useState(null);
+  const [mode,        setMode]       = useState(null); // null | "merge" | "split" | "color"
+  const [selCells,    setSelCells]   = useState(new Set());
+  const [pendingBg,   setPendingBg]  = useState(null);
+  const [showWidthUI, setShowWidthUI]= useState(false);
+  const [draftWidths, setDraftWidths]= useState(null);
+  const tableRef = useRef(null);
 
   const rows    = table.rows;
   const numCols = rows[0]?.length || 0;
   const key     = (r,c) => `${r},${c}`;
-
-  // ─── 컬럼 폭 (비율 %, 기본 균등 분배) ───────────────────
   const colWidths = table.colWidths || Array(numCols).fill(Math.floor(100/numCols));
-  const tableRef  = useRef(null);
-  const resizingRef = useRef(null); // { colIdx, startX, startWidths }
 
-  const onResizeStart = (e, colIdx) => {
-    if (mode) return; // 편집 모드 중엔 비활성
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX ?? e.touches?.[0]?.clientX;
-    resizingRef.current = { colIdx, startX, startWidths: [...colWidths] };
-
-    const onMove = (ev) => {
-      const { colIdx: ci, startX: sx, startWidths: sw } = resizingRef.current;
-      const dx = (ev.clientX ?? ev.touches?.[0]?.clientX) - sx;
-      const tableW = tableRef.current?.offsetWidth || 600;
-      const dPct = (dx / tableW) * 100;
-      const newWidths = [...sw];
-      // 최소 5% 보장, 인접 컬럼에서 폭을 빼옴
-      const nextCol = ci + 1;
-      if (nextCol < newWidths.length) {
-        const delta = Math.max(-(sw[ci] - 5), Math.min(sw[nextCol] - 5, dPct));
-        newWidths[ci]      = sw[ci]      + delta;
-        newWidths[nextCol] = sw[nextCol] - delta;
-      } else {
-        newWidths[ci] = Math.max(5, sw[ci] + dPct);
-      }
-      onUpdate({ colWidths: newWidths });
-    };
-
-    const onUp = () => {
-      resizingRef.current = null;
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.addEventListener("touchmove", onMove, { passive: false });
-    document.addEventListener("touchend", onUp);
+  // ── 폭 UI ────────────────────────────────────────────────
+  const openWidthUI = () => {
+    setDraftWidths(colWidths.map(w => String(Math.round(w))));
+    setShowWidthUI(true);
+    setMode(null);
   };
 
-  // Check if a cell is merged (colspan>1 or rowspan>1)
-  const isMerged = (cell) => (cell.colspan||1) > 1 || (cell.rowspan||1) > 1;
+  const handleWidthChange = (ci, val) => {
+    const next = [...draftWidths];
+    next[ci] = val;
+    setDraftWidths(next);
+  };
 
-  // Collect all merged-anchor cells for split mode highlighting
+  const applyWidths = () => {
+    const parsed = draftWidths.slice(0, numCols - 1).map(v => {
+      const n = parseFloat(v);
+      return isNaN(n) ? 5 : Math.max(5, Math.min(90, n));
+    });
+    const usedSum = parsed.reduce((a, b) => a + b, 0);
+    const last = Math.max(5, Math.round(100 - usedSum));
+    onUpdate({ colWidths: [...parsed, last] });
+    setShowWidthUI(false);
+    setDraftWidths(null);
+  };
+
+  const usedPct = draftWidths
+    ? draftWidths.slice(0, numCols - 1).reduce((a, v) => {
+        const n = parseFloat(v); return a + (isNaN(n) ? 0 : n);
+      }, 0)
+    : 0;
+  const remainPct = Math.max(0, Math.round(100 - usedPct));
+
+  // ── 셀 병합/분리 ──────────────────────────────────────────
+  const isMerged = cell => (cell.colspan||1) > 1 || (cell.rowspan||1) > 1;
   const mergedKeys = new Set();
-  rows.forEach((row,ri) => row.forEach((cell,ci) => { if (!cell.hidden && isMerged(cell)) mergedKeys.add(key(ri,ci)); }));
+  rows.forEach((row, ri) => row.forEach((cell, ci) => {
+    if (!cell.hidden && isMerged(cell)) mergedKeys.add(key(ri, ci));
+  }));
 
-  const enterMode = (m) => {
+  const enterMode = m => {
     if (mode === m) { setMode(null); setSelCells(new Set()); return; }
-    setMode(m); setSelCells(new Set());
-    setShowBgPic(false);
+    setMode(m); setSelCells(new Set()); setShowWidthUI(false);
   };
 
-  const handleCellClick = (r,c,e) => {
+  const handleCellClick = (r, c, e) => {
     e.stopPropagation();
-    const k = key(r,c);
+    const k = key(r, c);
     if (mode === "merge") {
-      setSelCells(prev => { const n=new Set(prev); n.has(k)?n.delete(k):n.add(k); return n; });
+      setSelCells(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
     } else if (mode === "split") {
-      const cell = rows[r][c];
-      if (!isMerged(cell)) return; // only selectable if merged
+      if (!isMerged(rows[r][c])) return;
       setSelCells(new Set([k]));
     } else if (mode === "color") {
-      setSelCells(prev => { const n=new Set(prev); n.has(k)?n.delete(k):n.add(k); return n; });
+      setSelCells(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
     } else {
-      // Normal: single select
-      setSelCells(prev => { const n=new Set(prev); if(e.shiftKey||e.metaKey||e.ctrlKey){n.has(k)?n.delete(k):n.add(k);}else{n.clear();n.add(k);} return n; });
+      setSelCells(prev => {
+        const n = new Set(prev);
+        if (e.shiftKey || e.metaKey || e.ctrlKey) { n.has(k) ? n.delete(k) : n.add(k); }
+        else { n.clear(); n.add(k); }
+        return n;
+      });
     }
   };
 
-  const confirm = () => {
+  const confirmMode = () => {
     if (mode === "merge") doMerge();
     else if (mode === "split") doSplit();
     else if (mode === "color") applyBg();
@@ -3052,93 +3047,98 @@ function TableBlock({ table, onUpdate, onDelete }) {
 
   const doMerge = () => {
     if (selCells.size < 2) return;
-    const coords = [...selCells].map(k=>k.split(",").map(Number));
-    const minR=Math.min(...coords.map(([r])=>r)), maxR=Math.max(...coords.map(([r])=>r));
-    const minC=Math.min(...coords.map(([,c])=>c)), maxC=Math.max(...coords.map(([,c])=>c));
-    const newRows = rows.map((row,ri)=>row.map((cell,ci)=>{
-      if (ri===minR && ci===minC) return {...cell, rowspan:maxR-minR+1, colspan:maxC-minC+1};
-      if (ri>=minR && ri<=maxR && ci>=minC && ci<=maxC) return {...cell, hidden:true};
+    const coords = [...selCells].map(k => k.split(",").map(Number));
+    const minR = Math.min(...coords.map(([r]) => r)), maxR = Math.max(...coords.map(([r]) => r));
+    const minC = Math.min(...coords.map(([, c]) => c)), maxC = Math.max(...coords.map(([, c]) => c));
+    onUpdate({ rows: rows.map((row, ri) => row.map((cell, ci) => {
+      if (ri === minR && ci === minC) return { ...cell, rowspan: maxR-minR+1, colspan: maxC-minC+1 };
+      if (ri >= minR && ri <= maxR && ci >= minC && ci <= maxC) return { ...cell, hidden: true };
       return cell;
-    }));
-    onUpdate({ rows: newRows });
+    }))});
     setMode(null); setSelCells(new Set());
   };
 
   const doSplit = () => {
     if (selCells.size !== 1) return;
-    const [r,c] = [...selCells][0].split(",").map(Number);
+    const [r, c] = [...selCells][0].split(",").map(Number);
     const cell = rows[r][c];
     if (!isMerged(cell)) return;
-    const newRows = rows.map((row,ri)=>row.map((cl,ci)=>{
-      if (ri===r && ci===c) return {...cl, colspan:1, rowspan:1};
-      if (ri>=r && ri<r+(cell.rowspan||1) && ci>=c && ci<c+(cell.colspan||1)) return {...cl, hidden:false};
+    onUpdate({ rows: rows.map((row, ri) => row.map((cl, ci) => {
+      if (ri === r && ci === c) return { ...cl, colspan: 1, rowspan: 1 };
+      if (ri >= r && ri < r + (cell.rowspan||1) && ci >= c && ci < c + (cell.colspan||1)) return { ...cl, hidden: false };
       return cl;
-    }));
-    onUpdate({ rows: newRows });
+    }))});
     setMode(null); setSelCells(new Set());
   };
 
-  const updCell = (r,c,patch) => {
-    onUpdate({ rows: rows.map((row,ri)=>row.map((cell,ci)=>ri===r&&ci===c?{...cell,...patch}:cell)) });
-  };
+  const updCell = (r, c, patch) =>
+    onUpdate({ rows: rows.map((row, ri) => row.map((cell, ci) => ri===r&&ci===c ? {...cell,...patch} : cell)) });
 
-  const addRow = () => onUpdate({ rows: [...rows, Array(numCols).fill(0).map(()=>mkCell())] });
-  const delRow = () => {
-    if (rows.length<=1) return;
-    onUpdate({ rows: rows.filter((_,i)=>i!==rows.length-1) });
-  };
+  const addRow = () => onUpdate({ rows: [...rows, Array(numCols).fill(0).map(() => mkCell())] });
+  const delRow = () => { if (rows.length > 1) onUpdate({ rows: rows.filter((_, i) => i !== rows.length-1) }); };
   const addCol = () => {
-    const newCols = numCols + 1;
-    const newW = Math.floor(100 / newCols);
-    const newWidthsArr = [...Array(newCols).fill(newW)];
-    onUpdate({ rows: rows.map(row=>[...row,mkCell()]), colWidths: newWidthsArr });
+    const n = numCols + 1;
+    onUpdate({ rows: rows.map(row => [...row, mkCell()]), colWidths: Array(n).fill(Math.floor(100/n)) });
   };
   const delCol = () => {
-    if (numCols<=1) return;
-    const newCols = numCols - 1;
-    const newW = Math.floor(100 / newCols);
-    onUpdate({ rows: rows.map(row=>row.filter((_,i)=>i!==numCols-1)), colWidths: Array(newCols).fill(newW) });
+    if (numCols <= 1) return;
+    const n = numCols - 1;
+    onUpdate({ rows: rows.map(row => row.filter((_, i) => i !== numCols-1)), colWidths: Array(n).fill(Math.floor(100/n)) });
   };
 
   const applyBg = () => {
-    if (selCells.size===0 || pendingBg===null) return;
-    onUpdate({ rows: rows.map((row,ri)=>row.map((cell,ci)=>selCells.has(key(ri,ci))?{...cell,bg:pendingBg}:cell)) });
+    if (!selCells.size || pendingBg === null) return;
+    onUpdate({ rows: rows.map((row, ri) => row.map((cell, ci) =>
+      selCells.has(key(ri, ci)) ? { ...cell, bg: pendingBg } : cell
+    ))});
     setMode(null); setSelCells(new Set()); setPendingBg(null);
   };
 
-  const BG_COLORS = ["none","#fef9c3","#dcfce7","#dbeafe","#fce7f3","#ede9fe","#ffedd5","#f1f5f9","#e2e8f0"];
+  // 색상 — 더 진하고 선명한 팔레트
+  const BG_COLORS = [
+    { c: "none",    label: "없음" },
+    { c: "#fde047", label: "노랑" },
+    { c: "#4ade80", label: "초록" },
+    { c: "#60a5fa", label: "파랑" },
+    { c: "#f472b6", label: "분홍" },
+    { c: "#a78bfa", label: "보라" },
+    { c: "#fb923c", label: "주황" },
+    { c: "#94a3b8", label: "회색" },
+    { c: "#f87171", label: "빨강" },
+    { c: "#2dd4bf", label: "민트" },
+  ];
+
   const modeActive = mode !== null;
-  const canConfirm = (mode==="merge" && selCells.size>=2) || (mode==="split" && selCells.size===1) || (mode==="color" && selCells.size>=1 && pendingBg!==null);
+  const canConfirm =
+    (mode==="merge" && selCells.size >= 2) ||
+    (mode==="split" && selCells.size === 1) ||
+    (mode==="color" && selCells.size >= 1 && pendingBg !== null);
 
   return (
-    <div style={{margin:"4px 0 8px",userSelect:"none"}} onClick={e=>e.stopPropagation()}>
+    <div style={{ margin:"4px 0 8px", userSelect:"none" }} onClick={e => e.stopPropagation()}>
 
-      {/* ── Toolbar ── */}
-      <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:6,flexWrap:"wrap"}}>
+      {/* ── 툴바 ── */}
+      <div style={{ display:"flex", alignItems:"center", gap:3, marginBottom:6, flexWrap:"wrap" }}>
 
-        {/* Normal mode: row/col + merge/split/color + delete */}
-        {!modeActive && <>
-          {/* +row */}
-          <button title="Add row" style={tbIcon} onClick={addRow}>
+        {/* 일반 모드 버튼들 */}
+        {!modeActive && !showWidthUI && <>
+          <button title="행 추가" style={tbIcon} onClick={addRow}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="1" y="4" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="1" y="3" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="1" y="9" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
-              <line x1="8" y1="11" x2="8" y2="11" stroke="currentColor" strokeWidth="1.3"/>
               <line x1="6" y1="11" x2="10" y2="11" stroke="currentColor" strokeWidth="1.3"/>
               <line x1="8" y1="9" x2="8" y2="13" stroke="currentColor" strokeWidth="1.3"/>
             </svg>
           </button>
-          {/* -row */}
-          <button title="Delete row" style={tbIcon} onClick={delRow}>
+          <button title="행 삭제" style={tbIcon} onClick={delRow}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="1" y="4" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <rect x="1" y="3" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="1" y="9" width="14" height="4" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <line x1="6" y1="11" x2="10" y2="11" stroke="currentColor" strokeWidth="1.3"/>
             </svg>
           </button>
-          <div style={{width:1,height:14,background:"#dce8fb",margin:"0 1px"}}/>
-          {/* +col */}
-          <button title="Add column" style={tbIcon} onClick={addCol}>
+          <div style={{ width:1, height:14, background:"#dce8fb", margin:"0 1px" }}/>
+          <button title="열 추가" style={tbIcon} onClick={addCol}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="9" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
@@ -3146,17 +3146,15 @@ function TableBlock({ table, onUpdate, onDelete }) {
               <line x1="9" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.3"/>
             </svg>
           </button>
-          {/* -col */}
-          <button title="Delete column" style={tbIcon} onClick={delCol}>
+          <button title="열 삭제" style={tbIcon} onClick={delCol}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="9" y="1" width="6" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <line x1="10" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.3"/>
             </svg>
           </button>
-          <div style={{width:1,height:14,background:"#dce8fb",margin:"0 1px"}}/>
-          {/* merge */}
-          <button title="Merge cells" style={tbIcon} onClick={()=>enterMode("merge")}>
+          <div style={{ width:1, height:14, background:"#dce8fb", margin:"0 1px" }}/>
+          <button title="셀 병합" style={tbIcon} onClick={() => enterMode("merge")}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
@@ -3166,136 +3164,150 @@ function TableBlock({ table, onUpdate, onDelete }) {
               <line x1="11" y1="5" x2="5" y2="11" stroke="#2563eb" strokeWidth="1.3"/>
             </svg>
           </button>
-          {/* split */}
-          <button title="Split cell" style={{...tbIcon, opacity: mergedKeys.size===0 ? 0.35:1}}
-            disabled={mergedKeys.size===0} onClick={()=>enterMode("split")}>
+          <button title="셀 분리" style={{ ...tbIcon, opacity: mergedKeys.size===0 ? 0.35 : 1 }}
+            disabled={mergedKeys.size===0} onClick={() => enterMode("split")}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="1" width="14" height="14" rx="1" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <line x1="8" y1="1" x2="8" y2="15" stroke="currentColor" strokeWidth="1.3"/>
               <line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.3"/>
             </svg>
           </button>
-          {/* color */}
-          <button title="Cell color" style={tbIcon} onClick={()=>enterMode("color")}>
+          {/* 배경색 */}
+          <button title="셀 배경색" style={tbIcon} onClick={() => enterMode("color")}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1" y="1" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" fill="none"/>
               <rect x="2" y="13" width="12" height="2" rx="1" fill="#7c3aed"/>
             </svg>
           </button>
-          {/* delete table */}
-          <button title="Delete table" style={{...tbIcon,color:"#fca5a5",marginLeft:"auto"}} onClick={onDelete}>
+          {/* 열 폭 조절 */}
+          <button title="열 폭 조절 (%입력)" style={{ ...tbIcon, color:"#059669" }} onClick={openWidthUI}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+              <polyline points="4,5 1,8 4,11" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+              <polyline points="12,5 15,8 12,11" stroke="currentColor" strokeWidth="1.3" fill="none"/>
+            </svg>
+          </button>
+          {/* 표 삭제 */}
+          <button title="표 삭제" style={{ ...tbIcon, color:"#fca5a5", marginLeft:"auto" }} onClick={onDelete}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M2 4h12M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
             </svg>
           </button>
         </>}
 
-        {/* Mode active: show label + confirm + cancel */}
+        {/* 모드 활성: label + confirm + cancel */}
         {modeActive && (
-          <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
-            <span style={{fontSize:11,fontWeight:600,color:mode==="merge"?"#2563eb":mode==="split"?"#ea580c":"#7c3aed",flex:1}}>
-              {mode==="merge" ? `⊞ Merge — select cells (${selCells.size})` :
-               mode==="split" ? "⊟ Split — select a merged cell" :
-               `🎨 Color — pick color, then select cells (${selCells.size})`}
+          <div style={{ display:"flex", alignItems:"center", gap:6, width:"100%", flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, fontWeight:600, flex:1,
+              color: mode==="merge"?"#2563eb": mode==="split"?"#ea580c":"#7c3aed" }}>
+              {mode==="merge" ? `⊞ 병합 — 셀 선택 (${selCells.size})` :
+               mode==="split" ? "⊟ 분리 — 병합 셀 선택" :
+               `🎨 배경색 — 색 선택 후 셀 클릭 (${selCells.size})`}
             </span>
-            {/* color swatches inline */}
+            {/* 색상 스와치 — 크고 선명하게 */}
             {mode==="color" && (
-              <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                {BG_COLORS.map(c=>{
-                  const isNone=c==="none", isSel=pendingBg===c;
+              <div style={{ display:"flex", gap:4, alignItems:"center", flexWrap:"wrap" }}>
+                {BG_COLORS.map(({ c, label }) => {
+                  const isNone = c==="none", isSel = pendingBg===c;
                   return (
-                    <div key={c} onClick={()=>setPendingBg(c)} title={isNone?"Remove color":c}
-                      style={{width:18,height:18,borderRadius:3,cursor:"pointer",flexShrink:0,
-                        background:isNone?"#fff":c,position:"relative",
-                        border:isSel?"2.5px solid #7c3aed":isNone?"1.5px dashed #c2d0e8":"1.5px solid rgba(0,0,0,.08)",
-                        boxShadow:isSel?"0 0 0 1px #7c3aed":"none"}}>
-                      {isNone&&<span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#94a3b8",fontWeight:700}}>✕</span>}
+                    <div key={c} onClick={() => setPendingBg(c)} title={label}
+                      style={{ width:24, height:24, borderRadius:5, cursor:"pointer", flexShrink:0,
+                        background: isNone ? "#fff" : c, position:"relative",
+                        border: isSel ? "2.5px solid #7c3aed" : isNone ? "1.5px dashed #c2d0e8" : "1.5px solid rgba(0,0,0,.15)",
+                        boxShadow: isSel ? "0 0 0 2px #ede9fe" : "none",
+                        transform: isSel ? "scale(1.15)" : "scale(1)",
+                        transition:"transform .1s, box-shadow .1s" }}>
+                      {isNone && <span style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#94a3b8",fontWeight:700 }}>✕</span>}
                     </div>
                   );
                 })}
               </div>
             )}
-            {/* confirm */}
-            <button style={{...tbIcon,
-              background:canConfirm?"#2563eb":"#e8eef8",
+            <button style={{ ...tbIcon, background:canConfirm?"#2563eb":"#e8eef8",
               color:canConfirm?"#fff":"#94a3b8",
               border:canConfirm?"1px solid #2563eb":"1px solid #e0eaf8",
-              fontSize:15,width:28,height:28,borderRadius:7,
-              cursor:canConfirm?"pointer":"default",transition:"all .12s"}}
-              onClick={canConfirm?confirm:undefined} title="Apply">✓</button>
-            {/* cancel */}
-            <button style={{...tbIcon,fontSize:15,width:28,height:28,borderRadius:7}}
-              onClick={()=>enterMode(mode)} title="Cancel">✕</button>
+              fontSize:15, width:28, height:28, borderRadius:7,
+              cursor:canConfirm?"pointer":"default", transition:"all .12s" }}
+              onClick={canConfirm ? confirmMode : undefined} title="적용">✓</button>
+            <button style={{ ...tbIcon, fontSize:15, width:28, height:28, borderRadius:7 }}
+              onClick={() => enterMode(mode)} title="취소">✕</button>
+          </div>
+        )}
+
+        {/* 폭 조절 UI */}
+        {showWidthUI && draftWidths && (
+          <div style={{ display:"flex", alignItems:"center", gap:5, width:"100%", flexWrap:"wrap",
+            background:"#f0fdf4", borderRadius:8, padding:"6px 10px", border:"1px solid #bbf7d0" }}>
+            <span style={{ fontSize:11, fontWeight:700, color:"#059669", flexShrink:0 }}>⟺ 열 폭 설정</span>
+            {draftWidths.slice(0, numCols - 1).map((v, ci) => (
+              <div key={ci} style={{ display:"flex", alignItems:"center", gap:2 }}>
+                <span style={{ fontSize:10, color:"#6b7280", flexShrink:0 }}>열{ci+1}</span>
+                <input
+                  value={v}
+                  onChange={e => handleWidthChange(ci, e.target.value)}
+                  onFocus={e => e.target.select()}
+                  style={{ width:44, padding:"3px 4px", border:"1.5px solid #6ee7b7", borderRadius:5,
+                    fontSize:12.5, color:"#059669", fontWeight:700, outline:"none",
+                    fontFamily:"inherit", textAlign:"center", background:"#fff" }}
+                  placeholder="25"
+                />
+                <span style={{ fontSize:10, color:"#6b7280" }}>%</span>
+              </div>
+            ))}
+            {/* 마지막 열 자동 */}
+            <div style={{ display:"flex", alignItems:"center", gap:2 }}>
+              <span style={{ fontSize:10, color:"#6b7280", flexShrink:0 }}>열{numCols}</span>
+              <div style={{ width:44, padding:"3px 4px", border:"1.5px solid #e0eaf8", borderRadius:5,
+                fontSize:12.5, color:"#94a3b8", fontWeight:700, textAlign:"center",
+                background:"#f8faff", fontFamily:"inherit" }}>{remainPct}</div>
+              <span style={{ fontSize:10, color:"#6b7280" }}>%</span>
+            </div>
+            <span style={{ fontSize:10, fontWeight:600,
+              color: Math.abs(usedPct + remainPct - 100) < 2 ? "#059669" : "#ef4444" }}>
+              합계 {Math.round(usedPct + remainPct)}%
+            </span>
+            <button style={{ ...tbIcon, background:"#059669", color:"#fff", border:"none",
+              width:28, height:28, borderRadius:7, fontSize:13, marginLeft:"auto" }}
+              onClick={applyWidths} title="적용">✓</button>
+            <button style={{ ...tbIcon, fontSize:13, width:28, height:28, borderRadius:7 }}
+              onClick={() => { setShowWidthUI(false); setDraftWidths(null); }} title="취소">✕</button>
           </div>
         )}
       </div>
 
-      {/* Table */}
-      <div style={{overflowX:"auto"}}>
-        <table ref={tableRef} style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",fontSize:13}}>
+      {/* 표 본체 */}
+      <div style={{ overflowX:"auto" }}>
+        <table ref={tableRef} style={{ width:"100%", borderCollapse:"collapse", tableLayout:"fixed", fontSize:13 }}>
           <colgroup>
-            {colWidths.map((w, ci) => (
-              <col key={ci} style={{width:`${w}%`}} />
-            ))}
+            {colWidths.map((w, ci) => <col key={ci} style={{ width:`${w}%` }} />)}
           </colgroup>
-          <thead>
-            <tr>
-              {colWidths.map((_, ci) => (
-                <th key={ci} style={{padding:0,border:"none",position:"relative",height:0}}>
-                  {/* 컬럼 우측 경계 드래그 핸들 (마지막 컬럼 제외) */}
-                  {ci < colWidths.length - 1 && (
-                    <div
-                      title="드래그하여 폭 조절"
-                      style={{
-                        position:"absolute", right:-3, top:0, bottom:0, width:6,
-                        cursor:"col-resize", zIndex:10,
-                        background:"transparent",
-                        borderRight: mode ? "none" : "2px solid transparent",
-                      }}
-                      onMouseDown={e => onResizeStart(e, ci)}
-                      onTouchStart={e => onResizeStart(e, ci)}
-                      onMouseEnter={e => { if (!mode) e.currentTarget.style.borderRight="2px solid #93c5fd"; }}
-                      onMouseLeave={e => e.currentTarget.style.borderRight="2px solid transparent"}
-                    />
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
           <tbody>
-            {rows.map((row,ri)=>(
+            {rows.map((row, ri) => (
               <tr key={ri}>
-                {row.map((cell,ci)=>{
+                {row.map((cell, ci) => {
                   if (cell.hidden) return null;
-                  const k = key(ri,ci);
+                  const k = key(ri, ci);
                   const isSel = selCells.has(k);
                   const isSelectable = mode==="split" ? isMerged(cell) : true;
-                  const isMergedCell = isMerged(cell);
 
-                  let borderColor = "#e0eaf8";
-                  let bgColor = (cell.bg && cell.bg!=="transparent" && cell.bg!=="none") ? cell.bg : "#fff";
-                  if (isSel && mode==="merge") { borderColor="#2563eb"; bgColor="rgba(37,99,235,.08)"; }
-                  if (isSel && mode==="split") { borderColor="#ea580c"; bgColor="rgba(234,88,12,.07)"; }
-                  if (!isSel && mode==="split" && isMergedCell) { borderColor="#fdba74"; bgColor="rgba(251,146,60,.06)"; }
-                  if (isSel && mode==="color") { borderColor="#7c3aed"; bgColor = pendingBg&&pendingBg!=="none" ? pendingBg : "rgba(124,58,237,.06)"; }
+                  let borderColor = "#d1d9e6";
+                  let bgColor = (cell.bg && cell.bg !== "transparent" && cell.bg !== "none") ? cell.bg : "#fff";
+                  if (isSel && mode==="merge") { borderColor = "#2563eb"; bgColor = "rgba(37,99,235,.08)"; }
+                  if (isSel && mode==="split") { borderColor = "#ea580c"; bgColor = "rgba(234,88,12,.07)"; }
+                  if (!isSel && mode==="split" && isMerged(cell)) { borderColor = "#fdba74"; bgColor = "rgba(251,146,60,.06)"; }
+                  if (isSel && mode==="color") { borderColor = "#7c3aed"; bgColor = pendingBg&&pendingBg!=="none" ? pendingBg : "rgba(124,58,237,.06)"; }
 
                   return (
                     <td key={cell.id}
                       colSpan={cell.colspan||1} rowSpan={cell.rowspan||1}
-                      onClick={e=>handleCellClick(ri,ci,e)}
-                      style={{
-                        border:`1.5px solid ${borderColor}`,
-                        background: bgColor,
-                        padding:"6px 8px",
-                        verticalAlign:"top",
-                        position:"relative",
+                      onClick={e => handleCellClick(ri, ci, e)}
+                      style={{ border:`1.5px solid ${borderColor}`, background:bgColor,
+                        padding:"6px 8px", verticalAlign:"top", position:"relative",
                         cursor: mode ? (isSelectable?"pointer":"default") : "cell",
-                        minWidth:60,
-                        transition:"background .1s, border-color .1s",
-                      }}>
+                        minWidth:40, transition:"background .1s, border-color .1s" }}>
                       <RichTableCell
                         content={cell.content||""}
-                        onChange={v=>updCell(ri,ci,{content:v})}
+                        onChange={v => updCell(ri, ci, { content:v })}
                         disabled={!!mode}
                       />
                     </td>
@@ -3306,9 +3318,14 @@ function TableBlock({ table, onUpdate, onDelete }) {
           </tbody>
         </table>
       </div>
-      {!mode && <div style={{fontSize:10,color:"#b0c4de",marginTop:4}}>Select cells to apply color (Shift/Cmd for multiple) · 컬럼 경계를 드래그하면 폭을 조절할 수 있습니다</div>}
+      {!mode && !showWidthUI && (
+        <div style={{ fontSize:10, color:"#b0c4de", marginTop:4 }}>
+          셀 클릭으로 선택 (Shift/Cmd 다중) · ⟺ 로 열 폭 조절
+        </div>
+      )}
     </div>
   );
+}
 }
 const tbBtn  = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:6,color:"#4b6fa8",fontSize:11.5,padding:"4px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:600};
 const tbIcon = {background:"#f5f8ff",border:"1px solid #dce8fb",borderRadius:7,color:"#4b6fa8",cursor:"pointer",fontFamily:"inherit",padding:0,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0};
