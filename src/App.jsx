@@ -1386,23 +1386,21 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
         </button>
       </div>
 
-      <div style={{flex:1,display:"flex",overflow:"hidden",flexDirection:"column"}}>
-        {/* Calendar 권한 없음 안내 배너 */}
-        {gcalError === "CALENDAR_PERMISSION" && (
-          <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,
-            padding:"12px 16px",margin:"8px 12px 0",flexShrink:0}}>
-            <div style={{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:4}}>
-              ⚠️ Google Calendar 권한이 없습니다
-            </div>
-            <div style={{fontSize:12,color:"#78350f",lineHeight:1.6}}>
-              기존 로그인에는 Calendar 권한이 포함되지 않았습니다.<br/>
-              <b>1.</b> 사이드바 하단 <b>Log out</b> 클릭<br/>
-              <b>2.</b> <b>Sign in with Google</b> 으로 재로그인<br/>
-              <b>3.</b> Google 권한 팝업에서 <b>Calendar 허용</b> 체크
-            </div>
+      {/* Calendar 권한 없음 안내 배너 */}
+      {gcalError === "CALENDAR_PERMISSION" && (
+        <div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,
+          padding:"10px 16px",margin:"0 12px 8px",flexShrink:0}}>
+          <div style={{fontSize:12.5,fontWeight:700,color:"#92400e",marginBottom:3}}>
+            ⚠️ Google Calendar 권한이 없습니다
           </div>
-        )}
-        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+          <div style={{fontSize:11.5,color:"#78350f",lineHeight:1.7}}>
+            기존 로그인에는 Calendar 권한이 없습니다.
+            사이드바 하단 <b>Log out</b> → <b>Sign in with Google</b> 재로그인 후 Calendar 허용 체크 필요
+          </div>
+        </div>
+      )}
+
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         {/* 월간 그리드 */}
         {viewMode==="month" && (
           <div style={{flex:1,overflowY:"auto",padding:"8px 12px"}}>
@@ -1563,7 +1561,6 @@ function CalendarView({ items, folders, accessToken, onUpdate }) {
           </div>
         </div>
       )}
-        </div>
       </div>
     </div>
   );
@@ -4363,7 +4360,7 @@ function AppInner() {
       </div>
       ${itemsHtml}
       <div class="footer">theNOTES · BAUMAN · Generated ${today}</div>
-      <script>window.onload = () => { setTimeout(() => window.print(), 300); }<\/script>
+      <script>window.onload = () => { setTimeout(() => window.print(), 300); }</scr"+"ipt>
     </body></html>`);
     w.document.close();
 
