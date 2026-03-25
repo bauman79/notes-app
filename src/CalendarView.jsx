@@ -88,6 +88,7 @@ function CalendarView(props) {
   var items      = props.items      || [];
   var calEvents  = props.calEvents  || [];
   var setCalEvents = props.setCalEvents;
+  var isMobile   = props.isMobile   || false;
 
   var now = new Date();
   var [y, setY] = useState(now.getFullYear());
@@ -169,7 +170,7 @@ function CalendarView(props) {
         <button style={tbBlue} onClick={function(){ openNew(todayKey); }}>+ 일정 추가</button>
       </div>
 
-      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",flexDirection: isMobile ? "column" : "row",overflow:"hidden"}}>
 
         <div style={{flex:1,overflowY:"auto",padding:"8px 10px"}}>
           <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
@@ -234,7 +235,14 @@ function CalendarView(props) {
         </div>
 
         {monthEvts.length > 0 && (
-          <div style={{width:220,borderLeft:"1px solid #e0eaf8",overflowY:"auto",padding:"10px 12px",background:"#f8faff",flexShrink:0}}>
+          <div style={{
+            width: isMobile ? "100%" : 220,
+            borderLeft: isMobile ? "none" : "1px solid #e0eaf8",
+            borderTop: isMobile ? "1px solid #e0eaf8" : "none",
+            overflowY:"auto", padding:"10px 12px", background:"#f8faff",
+            flexShrink:0,
+            maxHeight: isMobile ? 220 : "none",
+          }}>
             <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>
               {(m+1) + "월 " + monthEvts.length + "개"}
             </div>

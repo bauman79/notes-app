@@ -1790,7 +1790,7 @@ function ManualView({ isMobile }) {
 }
 
 // ─── UpcomingView ─────────────────────────────────────────
-function UpcomingView({ items, folders, onSelectFolder }) {
+function UpcomingView({ items, folders, onSelectFolder, isMobile }) {
   const today = mkDate();
   const todayD = new Date(); todayD.setHours(0,0,0,0);
   const tomorrow = new Date(todayD); tomorrow.setDate(tomorrow.getDate()+1);
@@ -1824,7 +1824,7 @@ function UpcomingView({ items, folders, onSelectFolder }) {
   );
 
   return (
-    <div style={{ padding:"16px 36px 40px", overflowY:"auto", height:"100%" }}>
+    <div style={{ padding: isMobile ? "4px 16px 40px" : "16px 36px 40px", overflowY:"auto", height:"100%" }}>
       <div style={{ fontSize:13, color:"#6b8bb5", marginBottom:20 }}>
         마감기한이 설정된 To-do {dueTodos.length}개
       </div>
@@ -4599,12 +4599,12 @@ function AppInner() {
         </div>
 
         {/* Content area */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
-          {isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} />}
+          {isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} isMobile={isMobile} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {isManual && <ManualView isMobile={isMobile} />}
-          {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} />}
+          {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
           {isNotice && (
             <>
               <NoticeView items={visibleItems} folders={folders} isMobile={isMobile} onUpdate={upd} onDelete={softDel} />
