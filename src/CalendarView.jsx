@@ -172,7 +172,7 @@ function CalendarView(props) {
 
       <div style={{flex:1,display:"flex",flexDirection: isMobile ? "column" : "row",overflow:"hidden"}}>
 
-        <div style={{flex:1,overflowY:"auto",padding:"8px 10px"}}>
+        <div style={{flex:1,overflowY:"auto",padding: isMobile ? "4px 4px" : "8px 10px"}}>
           <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
             <thead>
               <tr>
@@ -239,9 +239,9 @@ function CalendarView(props) {
             width: isMobile ? "100%" : 220,
             borderLeft: isMobile ? "none" : "1px solid #e0eaf8",
             borderTop: isMobile ? "1px solid #e0eaf8" : "none",
-            overflowY:"auto", padding:"10px 12px", background:"#f8faff",
+            overflowY:"auto", padding: isMobile ? "8px 10px" : "10px 12px", background:"#f8faff",
             flexShrink:0,
-            maxHeight: isMobile ? 220 : "none",
+            maxHeight: isMobile ? 200 : "none",
           }}>
             <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>
               {(m+1) + "월 " + monthEvts.length + "개"}

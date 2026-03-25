@@ -19,8 +19,7 @@ const firebaseApp  = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
-googleProvider.addScope("https://www.googleapis.com/auth/calendar");
-googleProvider.setCustomParameters({ prompt: "consent", access_type: "offline" });
+googleProvider.setCustomParameters({ prompt: "select_account" });
 const DRIVE_FILE_NAME  = "notes-app-data.json";
 
 // ─── Google Drive helpers ─────────────────────────────────
@@ -4098,10 +4097,10 @@ function AppInner() {
       }
       // fbUser 있음 — Drive token 유효성 확인 후 user 정보 업데이트
       const storedToken = localStorage.getItem("gtoken");
-      if (!storedToken) return; // Drive token 없으면 무시 (로그인 후 handleLoginResult가 처리)
+      if (!storedToken) return;
       const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
       if (expiry && Date.now() > expiry - 300000) {
-        // Drive token 만료 임박 — error 표시만 (강제 로그아웃 안 함)
+        // 만료 임박 — error 표시 (❌ 클릭 시 재로그인 안내)
         setSyncStatus("error");
         return;
       }
@@ -4227,6 +4226,8 @@ function AppInner() {
         const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs, calEvents }, driveFileId);
         if (savedId && !driveFileId) setDriveFileId(savedId);
         setSyncStatus("saved");
+        // 저장 성공 시 토큰 만료 시간 갱신 (사용 중이면 계속 유지)
+        localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000));
       } catch (e) {
         if (e.message === "TOKEN_EXPIRED" || String(e).includes("401")) {
           setSyncStatus("error");
