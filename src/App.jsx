@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
 import CalendarView from "./CalendarView.jsx";
+import CalcView from "./CalcView.jsx";
 
 
 // ─── Firebase config ──────────────────────────────────────
@@ -178,6 +179,7 @@ const TRASH_ID    = "__trash__";
 const WORKLOG_ID  = "__worklog__";
 const MANUAL_ID   = "__manual__";
 const UPCOMING_ID = "__upcoming__";
+const CALC_ID     = "__calc__";
 const TRASH_DAYS = 30;
 
 // ─── Drag-to-reorder: data-attr + container scan ──────────
@@ -2144,6 +2146,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             { id:WORKLOG_ID,  label:"Worklog",  icon:"📋", ac:"#c4b5fd",  ic:"rgba(167,139,250,.7)" },
             { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
             { id:MANUAL_ID,   label:"Manual",   icon:"📖", ac:"#bbf7d0",  ic:"rgba(134,239,172,.7)" },
+            { id:CALC_ID,     label:"Calc",     icon:"🏗", ac:"#fed7aa",  ic:"rgba(251,146,60,.7)"  },
           ].map(f => (
             <div key={f.id}
               style={{ ...NI, ...(activeFolder===f.id ? {background:"rgba(255,255,255,.12)",color:f.ac} : {color:f.ic}) }}
@@ -3791,6 +3794,7 @@ function AppInner() {
   const [showAddMenu,  setShowAddMenu]  = useState(false);
   const [lastFocusedId, setLastFocusedId] = useState(null); // 마지막 포커스된 아이템 ID
   const [showSidebar,   setShowSidebar]   = useState(false);
+  const [calcUnlocked, setCalcUnlocked]  = useState(false); // 세션 중에만 유지, 로그아웃 시 초기화
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [globalQuery,      setGlobalQuery]      = useState("");
   const [selMode,      setSelMode]      = useState(false);
@@ -3835,7 +3839,8 @@ function AppInner() {
   const isWorklog   = activeFolder === WORKLOG_ID;
   const isManual    = activeFolder === MANUAL_ID;
   const isUpcoming  = activeFolder === UPCOMING_ID;
-  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual || isUpcoming;
+  const isCalc      = activeFolder === CALC_ID;
+  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual || isUpcoming || isCalc;
   const liveItems   = items.filter(i => !i.deletedAt);
   const trashItems  = items.filter(i => !!i.deletedAt);
   const visibleItems = isNotice ? liveItems.filter(i => i.starred)
@@ -3845,7 +3850,7 @@ function AppInner() {
     : isManual   ? []
     : isUpcoming ? []
     : liveItems.filter(i => i.folder === activeFolder);
-  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:isUpcoming?{name:"Upcoming"}:folders.find(f => f.id===activeFolder);
+  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:isUpcoming?{name:"Upcoming"}:isCalc?{name:"건축계산기"}:folders.find(f => f.id===activeFolder);
 
   useEffect(() => { setItems(prev => prev.filter(i => !i.deletedAt || daysAgo(i.deletedAt) < TRASH_DAYS)); }, [activeFolder]);
 
@@ -4140,6 +4145,7 @@ function AppInner() {
     setItems(initItems);
     setWorklogs(initWorklogs);
     setUser(null); setAccessToken(null); setDriveFileId(null);
+    setCalcUnlocked(false);
     setDataLoaded(false); setSyncStatus("");
   };
 
@@ -4252,7 +4258,7 @@ function AppInner() {
       allItems={items} allWorklogs={worklogs} />
   );
 
-  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":isUpcoming?"📅 ":"";
+  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":isUpcoming?"📅 ":isCalc?"🏗 ":"";
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
@@ -4615,11 +4621,12 @@ function AppInner() {
         </div>
 
         {/* Content area */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar || isCalc ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
           {isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} isMobile={isMobile} />}
           {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {isManual && <ManualView isMobile={isMobile} />}
+          {isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
           {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
           {isNotice && (
             <>
