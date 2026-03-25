@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth";
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
 import CalendarView from "./CalendarView.jsx";
 
 
@@ -17,6 +17,7 @@ const firebaseConfig = {
 };
 const firebaseApp  = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
+setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
 googleProvider.setCustomParameters({ prompt: "select_account" });
@@ -4256,6 +4257,20 @@ function AppInner() {
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
       onClick={() => setShowAddMenu(false)}>
+
+      {/* 토큰 만료 배너 */}
+      {syncStatus === "error" && (
+        <div
+          onClick={() => setShowLogin(true)}
+          style={{ position:"fixed", top:0, left:0, right:0, zIndex:9999,
+            background:"linear-gradient(90deg,#dc2626,#b91c1c)",
+            color:"#fff", fontSize:13, fontWeight:600,
+            padding:"10px 20px", textAlign:"center",
+            cursor:"pointer", letterSpacing:".01em",
+            boxShadow:"0 2px 12px rgba(185,28,28,.4)" }}>
+          ⚠️ Google Drive 연결이 끊겼습니다 — 여기를 탭해서 재연결 (데이터는 안전합니다)
+        </div>
+      )}
 
       {isMobile && (
         <div style={{ position:"fixed", inset:0, background:"rgba(10,24,50,.5)", zIndex:300, display:"flex",
