@@ -23,6 +23,8 @@ const firestore    = getFirestore(firebaseApp);
 setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
 // Drive scope 제거 — Firestore 전환으로 불필요
+// Drive scope: 기존 데이터 마이그레이션 1회 필요 — 완료 후 제거 가능
+googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
 // ─── Firestore helpers ────────────────────────────────────
@@ -3989,6 +3991,7 @@ function AppInner() {
           // Firestore에 즉시 저장 (마이그레이션 완료)
           await fsSave(fbUser.uid, { sidebarItems: migratedSidebar, items: migratedItems, worklogs: migratedWorklogs, calEvents: migratedCalEvents });
           setSyncStatus("saved");
+          alert("✅ 기존 Google Drive 데이터를 성공적으로 가져왔습니다!\n앞으로는 Firestore에 자동 저장됩니다.");
         } else {
           setSyncStatus("saved"); // Drive 데이터도 없으면 빈 상태로 시작
         }
