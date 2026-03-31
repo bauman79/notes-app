@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import CalendarView from "./CalendarView.jsx";
 import CalcView from "./CalcView.jsx";
 
@@ -18,62 +19,41 @@ const firebaseConfig = {
 };
 const firebaseApp  = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
+const firestore    = getFirestore(firebaseApp);
 setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {});
 const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope("https://www.googleapis.com/auth/drive.file");
+// Drive scope 제거 — Firestore 전환으로 불필요
 googleProvider.setCustomParameters({ prompt: "select_account" });
-const DRIVE_FILE_NAME  = "notes-app-data.json";
 
-// ─── Google Drive helpers ─────────────────────────────────
-async function gdriveFind(token) {
-  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`,
-    { headers: { Authorization: "Bearer " + token } }
-  );
-  if (res.status === 401) throw new Error("TOKEN_EXPIRED");
-  const data = await res.json();
-  return data.files?.[0]?.id || null;
+// ─── Firestore helpers ────────────────────────────────────
+async function fsRead(uid) {
+  const snap = await getDoc(doc(firestore, "users", uid, "data", "main"));
+  return snap.exists() ? snap.data() : null;
+}
+async function fsSave(uid, data) {
+  await setDoc(doc(firestore, "users", uid, "data", "main"), data);
 }
 
-async function gdriveRead(token, fileId) {
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: "Bearer " + token } }
-  );
-  if (res.status === 401) throw new Error("TOKEN_EXPIRED");
-  if (!res.ok) return null;
-  return res.json();
-}
-
-async function gdriveSave(token, data, existingFileId) {
-  const body = JSON.stringify(data);
-  if (existingFileId) {
+// ─── Google Drive migration helper (1회성) ────────────────
+const DRIVE_FILE_NAME = "notes-app-data.json";
+async function driveMigrate(token) {
+  try {
+    const q = encodeURIComponent("name='" + DRIVE_FILE_NAME + "' and trashed=false");
     const res = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=media`,
-      {
-        method: "PATCH",
-        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-        body,
-      }
+      "https://www.googleapis.com/drive/v3/files?q=" + q + "&spaces=drive&fields=files(id,name)",
+      { headers: { Authorization: "Bearer " + token } }
     );
-    if (res.status === 401) throw new Error("TOKEN_EXPIRED");
-    if (!res.ok) throw new Error("Save failed: " + res.status);
-    return existingFileId;
-  } else {
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: "application/json" })], { type: "application/json" }));
-    form.append("file", new Blob([body], { type: "application/json" }));
-    const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token },
-      body: form,
-    });
-    if (res.status === 401) throw new Error("TOKEN_EXPIRED");
-    if (!res.ok) throw new Error("Create failed: " + res.status);
-    const created = await res.json();
-    return created.id; // 새로 생성된 파일 ID 반환
-  }
+    if (!res.ok) return null;
+    const data = await res.json();
+    const fileId = data.files?.[0]?.id;
+    if (!fileId) return null;
+    const res2 = await fetch(
+      "https://www.googleapis.com/drive/v3/files/" + fileId + "?alt=media",
+      { headers: { Authorization: "Bearer " + token } }
+    );
+    if (!res2.ok) return null;
+    return await res2.json();
+  } catch { return null; }
 }
 
 // ─── Constants ────────────────────────────────────────────
@@ -114,64 +94,6 @@ function createThumbnail(file) {
 
 
 const T = { HEADER: "header", TODO: "todo", TEXT: "text" };
-
-// ─── Google Calendar API helpers ─────────────────────────
-const GCAL_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary";
-
-async function gcalFetch(token, timeMin, timeMax) {
-  const params = new URLSearchParams({
-    timeMin: timeMin || new Date(Date.now() - 30*24*60*60*1000).toISOString(),
-    timeMax: timeMax || new Date(Date.now() + 60*24*60*60*1000).toISOString(),
-    maxResults: 250,
-    singleEvents: true,
-    orderBy: "startTime",
-  });
-  const r = await fetch(`${GCAL_BASE}/events?${params}`, {
-    headers: { Authorization: "Bearer " + token }
-  });
-  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
-  if (r.status === 403) throw new Error("CALENDAR_PERMISSION");  // Calendar scope 없음
-  if (!r.ok) throw new Error(`gcal fetch ${r.status}`);
-  const data = await r.json();
-  return data.items || [];
-}
-
-async function gcalCreateEvent(token, { title, date, description="" }) {
-  const body = {
-    summary: title,
-    description,
-    start: { date }, // "YYYY-MM-DD" 형식
-    end:   { date },
-  };
-  const r = await fetch(`${GCAL_BASE}/events`, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
-  if (!r.ok) throw new Error(`gcal create ${r.status}`);
-  return await r.json();
-}
-
-async function gcalUpdateEvent(token, eventId, patch) {
-  const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
-    method: "PATCH",
-    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
-  if (!r.ok) throw new Error(`gcal update ${r.status}`);
-  return await r.json();
-}
-
-async function gcalDeleteEvent(token, eventId) {
-  const r = await fetch(`${GCAL_BASE}/events/${eventId}`, {
-    method: "DELETE",
-    headers: { Authorization: "Bearer " + token },
-  });
-  if (r.status === 401) throw new Error("TOKEN_EXPIRED");
-  if (!r.ok && r.status !== 204) throw new Error(`gcal delete ${r.status}`);
-}
 
 const NOTICE_ID   = "__notice__";
 const CALENDAR_ID = "__calendar__";
@@ -2199,9 +2121,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             <div style={{ background:"#f8faff", borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
               <div style={{ fontSize:13, color:"#1e3a6e", fontWeight:600, marginBottom:4 }}>{user?.name || "Not signed in"}</div>
               <div style={{ fontSize:12, color:"#6b8bb5", marginBottom:4 }}>{user?.email || "Sign in to syncnc your notes"}</div>
-              {syncStatus==="saved" && <div style={{ fontSize:11, color:"#16a34a" }}>✅ Google Drive synced</div>}
+              {syncStatus==="saved" && <div style={{ fontSize:11, color:"#16a34a" }}>✅ Synced</div>}
               {syncStatus==="saving" && <div style={{ fontSize:11, color:"#ca8a04" }}>⏳ Saving...</div>}
-              {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626", cursor:"pointer" }} onClick={onLogin}>❌ Token expired — tap to re-login</div>}
+              {syncStatus==="error" && <div style={{ fontSize:11, color:"#dc2626", cursor:"pointer" }} onClick={onLogin}>❌ Sync error — tap to re-login</div>}
             </div>
 
             <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>App Features</div>
@@ -3004,20 +2926,23 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
   const [lightbox, setLightbox] = useState(false);
   const isImage = att.type === "image";
 
-  const handleDownload = () => {
-    const token = localStorage.getItem("gtoken");
-    if (!token || !att.driveFileId) return;
-    const url = `https://www.googleapis.com/drive/v3/files/${att.driveFileId}?alt=media`;
-    fetch(url, { headers:{ Authorization:"Bearer " + token } })
-      .then(r => r.blob())
-      .then(blob => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = att.name;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      })
-      .catch(() => alert("Download failed. Please re-login."));
+  const handleDownload = async () => {
+    if (!att.driveFileId) return;
+    try {
+      // Firebase 현재 세션에서 Google access token 획득
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if (!token) { alert("로그인 후 다시 시도해 주세요."); return; }
+      const url = "https://www.googleapis.com/drive/v3/files/" + att.driveFileId + "?alt=media";
+      const r = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = att.name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch { alert("Download failed. Please re-login."); }
   };
 
   if (!isImage) return (
@@ -3135,27 +3060,38 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
     fileInputRef.current.value = "";
     if (!file) return;
     if (file.size > MAX_SIZE) { alert("File too large. Max 10MB (selected: "+(file.size/1024/1024).toFixed(1)+"MB)"); return; }
-    const token = localStorage.getItem("gtoken");
-    if (!token) { alert("Please sign in with Google to upload files."); return; }
     setUploading(true);
     try {
       const isImage = file.type.startsWith("image/");
-      const driveFile = await gdriveUploadFile(token, file);
       let thumbnailDataUrl = null;
       if (isImage) thumbnailDataUrl = await createThumbnail(file);
+      // 이미지는 썸네일만 저장 (Firestore에 base64)
+      // 파일은 Drive에 업로드 (Drive scope 재획득)
+      let driveFileId = null;
+      if (!isImage) {
+        const driveProvider = new GoogleAuthProvider();
+        driveProvider.addScope("https://www.googleapis.com/auth/drive.file");
+        const result = await signInWithPopup(firebaseAuth, driveProvider);
+        const cred = GoogleAuthProvider.credentialFromResult(result);
+        const token = cred?.accessToken;
+        if (token) {
+          const driveFile = await gdriveUploadFile(token, file);
+          driveFileId = driveFile.id;
+        }
+      }
       const att = {
-        id: `att${nextId++}`,
+        id: "att" + nextId++,
         type: isImage ? "image" : "file",
         name: file.name,
         size: file.size,
-        driveFileId: driveFile.id,
+        driveFileId: driveFileId,
         thumbnailDataUrl,
         script: "",
         collapsed: false,
       };
       onUpdate({ attachments:[...(item.attachments||[]), att] });
     } catch(err) {
-      alert(err.message === "TOKEN_EXPIRED" ? "Session expired. Please re-login." : "Upload failed: " + err.message);
+      alert("Upload failed: " + err.message);
     } finally {
       setUploading(false);
     }
@@ -3759,7 +3695,7 @@ function AppInner() {
   const isMobile = useIsMobile();
   // Load from localStorage ONLY if logged in (token exists in localStorage)
   // If not logged in → show clean initData, not someone's private data
-  const isLoggedInOnLoad = !!localStorage.getItem("gtoken");
+  const isLoggedInOnLoad = !!localStorage.getItem("guser");
   const [sidebarItems, setSidebarItems] = useState(() => {
     if (!isLoggedInOnLoad) return initSidebar;
     try {
@@ -3825,9 +3761,7 @@ function AppInner() {
     return n;
   });
   const [user,         setUser]         = useState(null);
-  const [accessToken,  setAccessToken]  = useState(null);
   const [showLogin,    setShowLogin]    = useState(false);
-  const [driveFileId,  setDriveFileId]  = useState(null);
   const [syncStatus,   setSyncStatus]   = useState("");
   const [dataLoaded,   setDataLoaded]   = useState(false);
   const isRestoring = useRef(false); // prevent auto-save during restore
@@ -4018,58 +3952,67 @@ function AppInner() {
   // ─── Firebase Google Login (Redirect 방식) ──────────────
   const handleLoginResult = async (result) => {
     if (!result) return false;
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    const token = credential?.accessToken;
-    if (!token) return false;
     const fbUser = result.user;
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const driveToken = credential?.accessToken; // Drive 마이그레이션용 (1회성)
     const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
-    // Drive 로드 중 자동저장 방지
     isRestoring.current = true;
-    setAccessToken(token);
     setUser(userInfo);
-    localStorage.setItem("gtoken", token);
-    localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000)); // 58분 후 만료 기록
     localStorage.setItem("guser", JSON.stringify(userInfo));
     try {
-      const fileId = await gdriveFind(token);
-      if (fileId) {
-        setDriveFileId(fileId);
-        const data = await gdriveRead(token, fileId);
-        if (data) {
-          if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
-          if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
-          if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
-          if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
+      // Firestore에서 데이터 로드
+      const data = await fsRead(fbUser.uid);
+      if (data) {
+        // Firestore 데이터 있음 → 로드
+        if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
+        if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
+        if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
+        if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
+        setSyncStatus("saved");
+      } else if (driveToken) {
+        // Firestore 데이터 없음 + Drive 토큰 있음 → Drive에서 마이그레이션 시도
+        setSyncStatus("saving");
+        const driveData = await driveMigrate(driveToken);
+        if (driveData) {
+          const migratedSidebar   = driveData.sidebarItems || initSidebar;
+          const migratedItems     = driveData.items        || initItems;
+          const migratedWorklogs  = driveData.worklogs     || initWorklogs;
+          const migratedCalEvents = driveData.calEvents    || [];
+          setSidebarItems(migratedSidebar);
+          setItems(migratedItems);
+          setWorklogs(migratedWorklogs);
+          setCalEvents(migratedCalEvents);
+          localStorage.setItem("notes_sidebar",   JSON.stringify(migratedSidebar));
+          localStorage.setItem("notes_items",     JSON.stringify(migratedItems));
+          localStorage.setItem("notes_worklogs",  JSON.stringify(migratedWorklogs));
+          localStorage.setItem("notes_calevents", JSON.stringify(migratedCalEvents));
+          // Firestore에 즉시 저장 (마이그레이션 완료)
+          await fsSave(fbUser.uid, { sidebarItems: migratedSidebar, items: migratedItems, worklogs: migratedWorklogs, calEvents: migratedCalEvents });
           setSyncStatus("saved");
+        } else {
+          setSyncStatus("saved"); // Drive 데이터도 없으면 빈 상태로 시작
         }
+      } else {
+        setSyncStatus("saved"); // 새 사용자
       }
-    } catch (e) { console.error("Drive load error:", e); }
+    } catch (e) { console.error("Login data load error:", e); setSyncStatus("error"); }
     setDataLoaded(true);
     setShowLogin(false);
-    setTimeout(() => { isRestoring.current = false; }, 2500); // React 렌더링 완료 후 여유있게 해제
+    setTimeout(() => { isRestoring.current = false; }, 2500);
     return true;
   };
 
   const googleLogin = async () => {
     try {
-      // 먼저 redirect 결과가 있는지 확인 (페이지 로드 직후)
       const redirectResult = await getRedirectResult(firebaseAuth);
-      if (redirectResult) {
-        await handleLoginResult(redirectResult);
-        return;
-      }
-      // 없으면 popup 시도, 실패시 redirect
+      if (redirectResult) { await handleLoginResult(redirectResult); return; }
       try {
         const popupResult = await signInWithPopup(firebaseAuth, googleProvider);
         await handleLoginResult(popupResult);
       } catch (popupErr) {
-        // popup 차단됐으면 redirect로 fallback
         if (popupErr.code === "auth/popup-blocked" || popupErr.code === "auth/popup-closed-by-user") {
           await signInWithRedirect(firebaseAuth, googleProvider);
-          // redirect 후 페이지가 다시 로드됨 — 위의 getRedirectResult가 처리
-        } else {
-          throw popupErr;
-        }
+        } else { throw popupErr; }
       }
     } catch (e) {
       console.error("Login error:", e.code, e.message);
@@ -4084,57 +4027,53 @@ function AppInner() {
     }).catch(e => console.warn("Redirect result error:", e));
   }, []);
 
-  // ─── Firebase Auth state listener (ArchCalc 패턴 통합) ──
+  // ─── Firebase Auth 상태 리스너 (세션 자동 복원) ──────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
       if (!fbUser) {
-        // Firebase가 세션 만료 또는 로그아웃을 감지 — 상태 동기화
-        const hadUser = localStorage.getItem("guser");
-        if (hadUser) {
-          // 예상치 못한 Firebase 로그아웃 → Drive token도 클리어, 재로그인 안내
-          localStorage.removeItem("gtoken");
-          localStorage.removeItem("gtoken_expiry");
+        // Firebase 세션 만료 or 로그아웃
+        if (localStorage.getItem("guser")) {
           localStorage.removeItem("guser");
           setUser(null);
-          setAccessToken(null);
-          setSyncStatus("error");
+          setSyncStatus("");
         }
         return;
       }
-      // fbUser 있음 — Drive token 유효성 확인 후 user 정보 업데이트
-      const storedToken = localStorage.getItem("gtoken");
-      if (!storedToken) return;
-      const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
-      if (expiry && Date.now() > expiry - 300000) {
-        // 만료 임박 — error 표시 (❌ 클릭 시 재로그인 안내)
-        setSyncStatus("error");
-        return;
-      }
+      // Firebase 세션 유효 — 저장된 user 없을 때 (첫 로드) Firestore에서 복원
+      if (!localStorage.getItem("guser")) return;
+      if (dataLoaded) return; // 이미 로드됨
+      const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
+      setUser(userInfo);
+      localStorage.setItem("guser", JSON.stringify(userInfo));
+      isRestoring.current = true;
       try {
-        await fbUser.getIdToken(true); // Firebase ID token refresh
-        const userInfo = { name: fbUser.displayName, email: fbUser.email, picture: fbUser.photoURL };
-        setUser(userInfo);
-        localStorage.setItem("guser", JSON.stringify(userInfo));
-      } catch (e) {
-        console.warn("Auth state error:", e);
-      }
+        const data = await fsRead(fbUser.uid);
+        if (data) {
+          if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
+          if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
+          if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
+          if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
+          setSyncStatus("saved");
+        }
+      } catch (e) { console.error("Auth restore error:", e); }
+      setDataLoaded(true);
+      setTimeout(() => { isRestoring.current = false; }, 2500);
     });
-    return () => unsubscribe(); // ← cleanup 필수 (없으면 로그인 상태 불안정)
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
-    // ── 로그아웃 전 즉시 Drive 저장 ──
-    if (accessToken && driveFileId) {
+    // 로그아웃 전 즉시 Firestore 저장
+    const fbUser = firebaseAuth.currentUser;
+    if (fbUser) {
       try {
         if (saveTimer.current) clearTimeout(saveTimer.current);
         setSyncStatus("saving");
-        await gdriveSave(accessToken, { sidebarItems, items, worklogs, calEvents }, driveFileId);
+        await fsSave(fbUser.uid, { sidebarItems, items, worklogs, calEvents });
         setSyncStatus("saved");
       } catch (e) { console.warn("Pre-logout save failed:", e); }
     }
     try { await signOut(firebaseAuth); } catch {}
-    localStorage.removeItem("gtoken");
-    localStorage.removeItem("gtoken_expiry");
     localStorage.removeItem("guser");
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
@@ -4144,15 +4083,15 @@ function AppInner() {
     setSidebarItems(initSidebar);
     setItems(initItems);
     setWorklogs(initWorklogs);
-    setUser(null); setAccessToken(null); setDriveFileId(null);
+    setUser(null);
     setCalcUnlocked(false);
     setDataLoaded(false); setSyncStatus("");
   };
 
-  // ─── Auto-save to Google Drive ───────────────────────────
+  // ─── Auto-save to Firestore ───────────────────────────────
   const saveTimer = useRef(null);
 
-  // ── Save to localStorage on every change (instant local backup) ──
+  // localStorage 즉시 백업
   useEffect(() => {
     try { localStorage.setItem("notes_sidebar", JSON.stringify(sidebarItems)); } catch {}
   }, [sidebarItems]);
@@ -4166,87 +4105,34 @@ function AppInner() {
     try { localStorage.setItem("notes_calevents", JSON.stringify(calEvents)); } catch {}
   }, [calEvents]);
 
-  // ── Session restore on page reload ───────────────────────
-  // Firebase Auth 상태가 먼저 확인된 후 Drive token으로 데이터 복원
+  // ── 페이지 로드 시 세션 복원 ──────────────────────────────
   useEffect(() => {
-    const savedToken = localStorage.getItem("gtoken");
-    const savedUser  = localStorage.getItem("guser");
-    // 두 가지 모두 있어야 복원 시도
-    if (!savedToken || !savedUser) {
-      setDataLoaded(true); // 토큰 없으면 즉시 로드 완료로 처리
-      return;
-    }
-
-    // 만료된 token이면 복원 시도 안 함
-    const expiry = Number(localStorage.getItem("gtoken_expiry") || "0");
-    if (expiry && Date.now() > expiry) {
-      localStorage.removeItem("gtoken");
-      localStorage.removeItem("gtoken_expiry");
-      setSyncStatus("error");
-      setDataLoaded(true); // 만료돼도 로드 완료 처리
-      return;
-    }
-
-    isRestoring.current = true;
-    setAccessToken(savedToken);
+    const savedUser = localStorage.getItem("guser");
+    if (!savedUser) { setDataLoaded(true); return; }
+    // Firebase Auth onAuthStateChanged가 처리 — 여기선 로컬 캐시만 복원
     setUser(JSON.parse(savedUser));
-    (async () => {
-      try {
-        const fileId = await gdriveFind(savedToken);
-        if (fileId) {
-          setDriveFileId(fileId);
-          const data = await gdriveRead(savedToken, fileId);
-          if (data) {
-            if (data.sidebarItems) { setSidebarItems(data.sidebarItems); localStorage.setItem("notes_sidebar", JSON.stringify(data.sidebarItems)); }
-            if (data.items)        { setItems(data.items);                localStorage.setItem("notes_items",   JSON.stringify(data.items)); }
-            if (data.worklogs)     { setWorklogs(data.worklogs);          localStorage.setItem("notes_worklogs",JSON.stringify(data.worklogs)); }
-          if (data.calEvents)    { setCalEvents(data.calEvents);        localStorage.setItem("notes_calevents",JSON.stringify(data.calEvents)); }
-          }
-          setSyncStatus("saved");
-        }
-      } catch(e) {
-        if (e.message === "TOKEN_EXPIRED") {
-          // Drive token 만료 — localStorage 정리 후 재로그인 안내
-          localStorage.removeItem("gtoken");
-          localStorage.removeItem("gtoken_expiry");
-          setSyncStatus("error");
-          console.warn("Token expired — please re-login to sync.");
-        } else {
-          console.error("Session restore error:", e);
-          setSyncStatus("error");
-        }
-      } finally {
-        setDataLoaded(true);
-        setTimeout(() => { isRestoring.current = false; }, 2500);
-      }
-    })();
+    setDataLoaded(true);
   }, []);
 
+  // ── Firestore 자동 저장 (2초 debounce) ───────────────────
   useEffect(() => {
-    if (!accessToken || !dataLoaded) return;
-    if (isRestoring.current) return; // skip save during restore
+    const fbUser = firebaseAuth.currentUser;
+    if (!fbUser || !dataLoaded) return;
+    if (isRestoring.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      if (isRestoring.current) return; // 타이머 대기 중 restore 시작된 경우 재확인
+      if (isRestoring.current) return;
       setSyncStatus("saving");
       try {
-        const savedId = await gdriveSave(accessToken, { sidebarItems, items, worklogs, calEvents }, driveFileId);
-        if (savedId && !driveFileId) setDriveFileId(savedId);
+        await fsSave(fbUser.uid, { sidebarItems, items, worklogs, calEvents });
         setSyncStatus("saved");
-        // 저장 성공 시 토큰 만료 시간 갱신 (사용 중이면 계속 유지)
-        localStorage.setItem("gtoken_expiry", String(Date.now() + 3500000));
       } catch (e) {
-        if (e.message === "TOKEN_EXPIRED" || String(e).includes("401")) {
-          setSyncStatus("error");
-          console.warn("Token expired during save.");
-        } else {
-          console.error("Drive save error:", e);
-          setSyncStatus("error");
-        }
+        console.error("Firestore save error:", e);
+        setSyncStatus("error");
       }
     }, 2000);
     return () => clearTimeout(saveTimer.current);
-  }, [sidebarItems, items, worklogs, calEvents, accessToken, dataLoaded]);
+  }, [sidebarItems, items, worklogs, calEvents, dataLoaded]);
 
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
