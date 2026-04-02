@@ -4247,7 +4247,9 @@ function AppInner() {
               items={liveItems} folders={folders} worklogs={worklogs}
               isMobile={isMobile} isPanel={true}
               onClose={() => setShowAIPanel(false)}
-              currentFolder={activeF?.name || ""}
+              contextType={isSpecial ? activeFolder : "folder"}
+              folderId={isSpecial ? null : activeFolder}
+              folderName={activeF?.name || ""}
               currentItems={isSpecial ? [] : visibleItems}
               onUpdateItem={upd}
             />
@@ -4682,7 +4684,7 @@ function AppInner() {
           {(!user || termsAccepted) && isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {(!user || termsAccepted) && isManual && <ManualView isMobile={isMobile} />}
           {(!user || termsAccepted) && isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
-          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} onUpdateItem={upd} />}
+          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} onUpdateItem={upd} contextType="all" folderId={null} folderName="" currentItems={[]} />}
           {(!user || termsAccepted) && isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
           {(!user || termsAccepted) && isNotice && (
             <>
