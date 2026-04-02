@@ -4021,12 +4021,19 @@ function AppInner() {
     setShowLogin(false);
     // 약관 동의 확인 — Firestore에서 동의 버전 체크
     try {
-      const termsSnap = await getDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"));
-      const acceptedVer = termsSnap.exists() ? termsSnap.data().version : null;
-      if (acceptedVer !== TERMS_VERSION) {
-        setShowTerms(true); // 미동의 or 구버전 → 약관 모달 표시
-      } else {
+      // localStorage 캐시 먼저 확인 (빠른 복원)
+      const cachedVer = localStorage.getItem("notes_terms_ver");
+      if (cachedVer === TERMS_VERSION) {
         setTermsAccepted(true);
+      } else {
+        const termsSnap = await getDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"));
+        const acceptedVer = termsSnap.exists() ? termsSnap.data().version : null;
+        if (acceptedVer === TERMS_VERSION) {
+          setTermsAccepted(true);
+          localStorage.setItem("notes_terms_ver", TERMS_VERSION);
+        } else {
+          setShowTerms(true);
+        }
       }
     } catch { setShowTerms(true); }
     setTimeout(() => { isRestoring.current = false; }, 2500);
@@ -4101,6 +4108,7 @@ function AppInner() {
         await setDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"), {
           version: TERMS_VERSION, acceptedAt: new Date().toISOString()
         });
+        localStorage.setItem("notes_terms_ver", TERMS_VERSION);
       } catch (e) { console.warn("Terms save failed:", e); }
     }
     setTermsAccepted(true);
@@ -4120,6 +4128,7 @@ function AppInner() {
     }
     try { await signOut(firebaseAuth); } catch {}
     localStorage.removeItem("guser");
+    localStorage.removeItem("notes_terms_ver");
     localStorage.removeItem("notes_sidebar");
     localStorage.removeItem("notes_items");
     localStorage.removeItem("notes_worklogs");
@@ -4166,22 +4175,27 @@ function AppInner() {
   useEffect(() => {
     const savedUser = localStorage.getItem("guser");
     if (!savedUser) { setDataLoaded(true); return; }
-    // Firebase Auth onAuthStateChanged가 처리 — 여기선 로컬 캐시만 복원
     setUser(JSON.parse(savedUser));
+    // 약관 캐시 복원 — localStorage에 버전 있으면 재동의 불필요
+    if (localStorage.getItem("notes_terms_ver") === TERMS_VERSION) {
+      setTermsAccepted(true);
+    }
     setDataLoaded(true);
   }, []);
 
   // ── Firestore 자동 저장 (2초 debounce) ───────────────────
   useEffect(() => {
     const fbUser = firebaseAuth.currentUser;
-    if (!fbUser || !dataLoaded) return;
+    if (!fbUser || !dataLoaded || !user) return;
     if (isRestoring.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       if (isRestoring.current) return;
+      const currentUser = firebaseAuth.currentUser;
+      if (!currentUser) return;
       setSyncStatus("saving");
       try {
-        await fsSave(fbUser.uid, { sidebarItems, items, worklogs, calEvents });
+        await fsSave(currentUser.uid, { sidebarItems, items, worklogs, calEvents });
         setSyncStatus("saved");
       } catch (e) {
         console.error("Firestore save error:", e);
@@ -4189,7 +4203,7 @@ function AppInner() {
       }
     }, 2000);
     return () => clearTimeout(saveTimer.current);
-  }, [sidebarItems, items, worklogs, calEvents, dataLoaded]);
+  }, [sidebarItems, items, worklogs, calEvents, dataLoaded, user]);
 
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
@@ -4235,6 +4249,7 @@ function AppInner() {
               onClose={() => setShowAIPanel(false)}
               currentFolder={activeF?.name || ""}
               currentItems={isSpecial ? [] : visibleItems}
+              onUpdateItem={upd}
             />
           </div>
         </div>
@@ -4667,7 +4682,7 @@ function AppInner() {
           {(!user || termsAccepted) && isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {(!user || termsAccepted) && isManual && <ManualView isMobile={isMobile} />}
           {(!user || termsAccepted) && isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
-          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} onUpdateItem={upd} />}
           {(!user || termsAccepted) && isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
           {(!user || termsAccepted) && isNotice && (
             <>
