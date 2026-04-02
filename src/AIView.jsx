@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 
 var SYSTEM_PROMPT = "You are a helpful assistant. When users write in Korean, respond in Korean. When users write in English, respond in English. Be concise, practical, and clear. When analyzing notes provided, focus on what's most useful to the user.";
 var HISTORY_KEY = "ai_chat_history";
@@ -26,29 +24,20 @@ function TypingDots() {
   );
 }
 
-// ── Firestore 대화 기록 저장/로드 ──────────────────────────
-var db = getFirestore();
-var auth = getAuth();
+// ── 대화 기록 localStorage 저장/로드 ──────────────────────
+var AI_HISTORY_LS = "notes_ai_history";
 
-async function loadHistory() {
-  var fbUser = auth.currentUser;
-  if (!fbUser) return [];
+function loadHistory() {
   try {
-    var snap = await getDoc(doc(db, "users", fbUser.uid, "ai", "history"));
-    return snap.exists() ? (snap.data().messages || []) : [];
+    var raw = localStorage.getItem(AI_HISTORY_LS);
+    return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
-async function saveHistory(msgs) {
-  var fbUser = auth.currentUser;
-  if (!fbUser) return;
+function saveHistory(msgs) {
   try {
-    // 최근 100개만 보관
     var trimmed = msgs.slice(-100);
-    await setDoc(doc(db, "users", fbUser.uid, "ai", "history"), {
-      messages: trimmed,
-      updatedAt: new Date().toISOString(),
-    });
+    localStorage.setItem(AI_HISTORY_LS, JSON.stringify(trimmed));
   } catch (e) { console.warn("AI history save failed:", e); }
 }
 
@@ -76,10 +65,10 @@ function AIView(props) {
 
   // 대화 기록 로드 (마운트 시 1회)
   useEffect(function() {
-    loadHistory().then(function(hist) {
+    var hist = loadHistory(); (function() {
       if (hist.length > 0) setMessages(hist);
       setHistLoaded(true);
-    });
+    })();
   }, []);
 
   // 대화 기록 Firestore 저장 (debounce)
