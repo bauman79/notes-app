@@ -4102,17 +4102,17 @@ function AppInner() {
 
   // 약관 동의 처리
   const handleAcceptTerms = async () => {
-    const fbUser = firebaseAuth.currentUser;
-    if (fbUser) {
-      try {
-        await setDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"), {
-          version: TERMS_VERSION, acceptedAt: new Date().toISOString()
-        });
-        localStorage.setItem("notes_terms_ver", TERMS_VERSION);
-      } catch (e) { console.warn("Terms save failed:", e); }
-    }
+    // localStorage는 무조건 저장 (Firestore 성패와 무관)
+    localStorage.setItem("notes_terms_ver", TERMS_VERSION);
     setTermsAccepted(true);
     setShowTerms(false);
+    // Firestore에도 저장 시도 (실패해도 무방)
+    const fbUser = firebaseAuth.currentUser;
+    if (fbUser) {
+      setDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"), {
+        version: TERMS_VERSION, acceptedAt: new Date().toISOString()
+      }).catch(e => console.warn("Terms Firestore save failed:", e));
+    }
   };
 
   const handleLogout = async () => {
