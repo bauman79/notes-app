@@ -6,6 +6,7 @@ import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, Google
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import CalendarView from "./CalendarView.jsx";
 import CalcView from "./CalcView.jsx";
+import AIView from "./AIView.jsx";
 
 
 // ─── Firebase config ──────────────────────────────────────
@@ -104,6 +105,8 @@ const WORKLOG_ID  = "__worklog__";
 const MANUAL_ID   = "__manual__";
 const UPCOMING_ID = "__upcoming__";
 const CALC_ID     = "__calc__";
+const AI_ID       = "__ai__";
+const TERMS_VERSION = "1.0"; // 약관 버전 — 변경 시 올려주면 재동의 요청
 const TRASH_DAYS = 30;
 
 // ─── Drag-to-reorder: data-attr + container scan ──────────
@@ -1958,7 +1961,7 @@ function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focu
   );
 }
 
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone, allItems, allWorklogs }) {
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, onShowTerms, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone, allItems, allWorklogs }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -2071,6 +2074,7 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
             { id:MANUAL_ID,   label:"Manual",   icon:"📖", ac:"#bbf7d0",  ic:"rgba(134,239,172,.7)" },
             { id:CALC_ID,     label:"Calc",     icon:"🏗", ac:"#fed7aa",  ic:"rgba(251,146,60,.7)"  },
+            { id:AI_ID,       label:"AI",       icon:"🤖", ac:"#e9d5ff",  ic:"rgba(167,139,250,.7)" },
           ].map(f => (
             <div key={f.id}
               style={{ ...NI, ...(activeFolder===f.id ? {background:"rgba(255,255,255,.12)",color:f.ac} : {color:f.ic}) }}
@@ -2290,8 +2294,12 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
                 {syncStatus==="saving"?"⏳ Saving...":syncStatus==="saved"?"✅ Synced":syncStatus==="error"?"❌ Re-login needed":"·"}
               </div>
             </div>
-            <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}
-              onClick={onLogout}>Log out</button>
+            <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+              <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit" }}
+                onClick={() => { if(window.confirm("이용약관을 다시 확인하시겠습니까?\n\n확인 버튼을 누르면 약관 화면이 열립니다.")) onShowTerms && onShowTerms(); }}>약관</button>
+              <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit" }}
+                onClick={onLogout}>Log out</button>
+            </div>
           </div>
         ) : (
           <button style={{ display:"flex", alignItems:"center", gap:8, width:"100%", background:"rgba(255,255,255,.95)", border:"none", borderRadius:10, padding:"10px 14px", cursor:"pointer", fontSize:12.5, fontWeight:600, color:"#1650b8", boxShadow:"0 2px 8px rgba(0,0,0,.15)" }}
@@ -3184,6 +3192,12 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             </button>
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
               style={{display:"none"}} onChange={handleFileSelect} />
+            {/* 🤖 AI 인라인 */}
+            <button title="AI에게 이 노트 분석 요청"
+              style={{...footBtn, color:"#7c3aed"}}
+              onClick={e=>{e.stopPropagation(); window.__openAIWithNote && window.__openAIWithNote(item);}}>
+              <span style={{fontSize:12}}>🤖</span>
+            </button>
           </div>
         </div>
       </div>
@@ -3732,7 +3746,10 @@ function AppInner() {
   const [showAddMenu,  setShowAddMenu]  = useState(false);
   const [lastFocusedId, setLastFocusedId] = useState(null); // 마지막 포커스된 아이템 ID
   const [showSidebar,   setShowSidebar]   = useState(false);
-  const [calcUnlocked, setCalcUnlocked]  = useState(false); // 세션 중에만 유지, 로그아웃 시 초기화
+  const [calcUnlocked, setCalcUnlocked]  = useState(false);
+  const [showAIPanel,  setShowAIPanel]   = useState(false); // 헤더 AI 슬라이드 패널
+  const [showTerms,    setShowTerms]     = useState(false); // 이용약관 모달
+  const [termsAccepted, setTermsAccepted] = useState(false); // 약관 동의 여부 // 세션 중에만 유지, 로그아웃 시 초기화
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [globalQuery,      setGlobalQuery]      = useState("");
   const [selMode,      setSelMode]      = useState(false);
@@ -3776,7 +3793,8 @@ function AppInner() {
   const isManual    = activeFolder === MANUAL_ID;
   const isUpcoming  = activeFolder === UPCOMING_ID;
   const isCalc      = activeFolder === CALC_ID;
-  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual || isUpcoming || isCalc;
+  const isAI        = activeFolder === AI_ID;
+  const isSpecial   = isNotice || isCalendar || isTrash || isWorklog || isManual || isUpcoming || isCalc || isAI;
   const liveItems   = items.filter(i => !i.deletedAt);
   const trashItems  = items.filter(i => !!i.deletedAt);
   const visibleItems = isNotice ? liveItems.filter(i => i.starred)
@@ -3786,7 +3804,7 @@ function AppInner() {
     : isManual   ? []
     : isUpcoming ? []
     : liveItems.filter(i => i.folder === activeFolder);
-  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:isUpcoming?{name:"Upcoming"}:isCalc?{name:"건축계산기"}:folders.find(f => f.id===activeFolder);
+  const activeF = isNotice?{name:"Notice"}:isCalendar?{name:"Calendar"}:isTrash?{name:"Trash"}:isWorklog?{name:"Worklog"}:isManual?{name:"Manual"}:isUpcoming?{name:"Upcoming"}:isCalc?{name:"건축계산기"}:isAI?{name:"AI 어시스턴트"}:folders.find(f => f.id===activeFolder);
 
   useEffect(() => { setItems(prev => prev.filter(i => !i.deletedAt || daysAgo(i.deletedAt) < TRASH_DAYS)); }, [activeFolder]);
 
@@ -4001,6 +4019,16 @@ function AppInner() {
     } catch (e) { console.error("Login data load error:", e); setSyncStatus("error"); }
     setDataLoaded(true);
     setShowLogin(false);
+    // 약관 동의 확인 — Firestore에서 동의 버전 체크
+    try {
+      const termsSnap = await getDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"));
+      const acceptedVer = termsSnap.exists() ? termsSnap.data().version : null;
+      if (acceptedVer !== TERMS_VERSION) {
+        setShowTerms(true); // 미동의 or 구버전 → 약관 모달 표시
+      } else {
+        setTermsAccepted(true);
+      }
+    } catch { setShowTerms(true); }
     setTimeout(() => { isRestoring.current = false; }, 2500);
     return true;
   };
@@ -4065,6 +4093,20 @@ function AppInner() {
     return () => unsubscribe();
   }, []);
 
+  // 약관 동의 처리
+  const handleAcceptTerms = async () => {
+    const fbUser = firebaseAuth.currentUser;
+    if (fbUser) {
+      try {
+        await setDoc(doc(firestore, "users", fbUser.uid, "meta", "terms"), {
+          version: TERMS_VERSION, acceptedAt: new Date().toISOString()
+        });
+      } catch (e) { console.warn("Terms save failed:", e); }
+    }
+    setTermsAccepted(true);
+    setShowTerms(false);
+  };
+
   const handleLogout = async () => {
     // 로그아웃 전 즉시 Firestore 저장
     const fbUser = firebaseAuth.currentUser;
@@ -4088,11 +4130,23 @@ function AppInner() {
     setWorklogs(initWorklogs);
     setUser(null);
     setCalcUnlocked(false);
+    setTermsAccepted(false);
+    setShowAIPanel(false);
     setDataLoaded(false); setSyncStatus("");
   };
 
   // ─── Auto-save to Firestore ───────────────────────────────
   const saveTimer = useRef(null);
+
+  // 인라인 AI 버튼에서 호출 (TextBlock → AppInner)
+  useEffect(() => {
+    window.__openAIWithNote = (item) => {
+      setShowAIPanel(true);
+      // AIView에 노트 전달은 ref를 통해 처리
+      window.__aiNoteContext = item;
+    };
+    return () => { delete window.__openAIWithNote; delete window.__aiNoteContext; };
+  }, []);
 
   // localStorage 즉시 백업
   useEffect(() => {
@@ -4140,14 +4194,14 @@ function AppInner() {
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
       activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
-      user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout}
+      user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onShowTerms={() => setShowTerms(true)}
       trashCount={trashItems.length} syncStatus={syncStatus}
       activeSidebarId={activeFolder}
       focusNewId={focusNewSBI} onFocusDone={() => setFocusNewSBI(null)}
       allItems={items} allWorklogs={worklogs} />
   );
 
-  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":isUpcoming?"📅 ":isCalc?"🏗 ":"";
+  const titlePre = isCalendar?"◷ ":isNotice?"★ ":isTrash?"🗑 ":isWorklog?"📋 ":isManual?"📖 ":isUpcoming?"📅 ":isCalc?"🏗 ":isAI?"🤖 ":"";
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
@@ -4164,6 +4218,83 @@ function AppInner() {
             cursor:"pointer", letterSpacing:".01em",
             boxShadow:"0 2px 12px rgba(185,28,28,.4)" }}>
           ⚠️ Google Drive 연결이 끊겼습니다 — 여기를 탭해서 재연결 (데이터는 안전합니다)
+        </div>
+      )}
+
+      {/* ── AI 슬라이드 패널 (헤더 🤖 버튼) ─────────────────── */}
+      {showAIPanel && (
+        <div style={{ position:"fixed", inset:0, zIndex:800, display:"flex" }}
+          onClick={() => setShowAIPanel(false)}>
+          <div style={{ flex:1 }} />
+          <div style={{ width:"min(420px,100vw)", height:"100%", background:"#fff",
+            boxShadow:"-4px 0 32px rgba(15,32,68,.18)", display:"flex", flexDirection:"column" }}
+            onClick={e => e.stopPropagation()}>
+            <AIView
+              items={liveItems} folders={folders} worklogs={worklogs}
+              isMobile={isMobile} isPanel={true}
+              onClose={() => setShowAIPanel(false)}
+              currentFolder={activeF?.name || ""}
+              currentItems={isSpecial ? [] : visibleItems}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── 이용약관 모달 ─────────────────────────────────────── */}
+      {showTerms && (
+        <div style={{ position:"fixed", inset:0, zIndex:9998, background:"rgba(15,32,68,.6)",
+          display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:"#fff", borderRadius:16, width:"min(540px,100%)",
+            maxHeight:"85vh", display:"flex", flexDirection:"column",
+            boxShadow:"0 20px 60px rgba(15,32,68,.3)" }}>
+            <div style={{ padding:"22px 24px 16px", borderBottom:"1px solid #e0eaf8", flexShrink:0 }}>
+              <div style={{ fontSize:18, fontWeight:800, color:"#1e3a6e", marginBottom:4 }}>📋 이용약관 및 개인정보처리방침</div>
+              <div style={{ fontSize:12, color:"#94a3b8" }}>theNOTES · BAUMAN · 최종 수정: 2025년 4월</div>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"18px 24px", fontSize:13, color:"#374151", lineHeight:1.8 }}>
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제1조 (서비스 소개)</p>
+              <p style={{ marginBottom:14 }}>theNOTES(이하 "서비스")는 BAUMAN(운영자: 이두호, 이메일: duholee79@gmail.com)이 운영하는 노트 관리 및 AI 어시스턴트 웹 서비스입니다.</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제2조 (이용 조건)</p>
+              <p style={{ marginBottom:14 }}>Google 계정으로 로그인하여 서비스를 이용할 수 있습니다. 서비스를 이용함으로써 본 약관에 동의한 것으로 간주합니다.</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제3조 (데이터 저장)</p>
+              <p style={{ marginBottom:6 }}>• 노트, 할일, 워크로그, 캘린더 데이터는 Google Firebase Firestore(서울 리전)에 저장됩니다.</p>
+              <p style={{ marginBottom:6 }}>• 첨부 파일 및 사진은 사용자 본인의 Google Drive에 저장되며, 운영자는 접근할 수 없습니다.</p>
+              <p style={{ marginBottom:14 }}>• 사용자는 언제든지 계정 데이터 삭제를 요청할 수 있습니다.</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제4조 (AI 기능)</p>
+              <p style={{ marginBottom:6 }}>• AI 어시스턴트 기능은 Groq(외부 AI 서비스)를 통해 제공됩니다.</p>
+              <p style={{ marginBottom:6 }}>• AI에게 전달되는 노트 내용은 Groq 서버로 전송될 수 있습니다.</p>
+              <p style={{ marginBottom:14 }}>• AI 답변은 참고용이며, 법적·의료적·재정적 판단의 근거로 사용하지 마십시오.</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제5조 (개인정보 수집)</p>
+              <p style={{ marginBottom:6 }}>• 수집 항목: Google 계정 이름, 이메일, 프로필 사진</p>
+              <p style={{ marginBottom:6 }}>• 수집 목적: 서비스 로그인 및 사용자 식별</p>
+              <p style={{ marginBottom:14 }}>• 보유 기간: 서비스 이용 기간 동안 보관, 탈퇴 요청 시 즉시 삭제</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제6조 (면책 조항)</p>
+              <p style={{ marginBottom:14 }}>서비스는 "있는 그대로" 제공됩니다. 운영자는 서비스 이용으로 인한 직접적·간접적 손해에 대해 책임을 지지 않습니다.</p>
+
+              <p style={{ fontWeight:700, color:"#1e3a6e", marginBottom:8 }}>제7조 (문의)</p>
+              <p>이용약관 관련 문의: duholee79@gmail.com</p>
+            </div>
+            <div style={{ padding:"16px 24px", borderTop:"1px solid #e0eaf8", flexShrink:0 }}>
+              <button onClick={handleAcceptTerms}
+                style={{ width:"100%", padding:"13px", borderRadius:10, border:"none",
+                  background:"linear-gradient(135deg,#2563eb,#1650b8)", color:"#fff",
+                  fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                  marginBottom:8 }}>
+                동의하고 서비스 이용하기
+              </button>
+              <button onClick={async () => { await handleLogout(); }}
+                style={{ width:"100%", padding:"10px", borderRadius:10,
+                  border:"1px solid #e0eaf8", background:"#f8faff",
+                  color:"#6b7280", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                동의하지 않음 (로그아웃)
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -4225,6 +4356,11 @@ function AppInner() {
                   title="Search all notes"
                   onClick={() => setShowGlobalSearch(v => !v)}>
                   <span style={{ fontSize:16 }}>🔍</span>
+                </button>
+                <button style={{ width:34, height:34, borderRadius:9, background:showAIPanel?"rgba(124,58,237,.15)":"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                  title="AI 어시스턴트"
+                  onClick={() => setShowAIPanel(v => !v)}>
+                  <span style={{ fontSize:16 }}>🤖</span>
                 </button>
                 {showGlobalSearch && (
                   <div style={{ position:"fixed", inset:0, background:"rgba(15,32,68,.35)", zIndex:700, display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:60 }}
@@ -4463,6 +4599,10 @@ function AppInner() {
                 onClick={() => setShowGlobalSearch(v => !v)}>
                 <span style={{ fontSize:15 }}>🔍</span>
               </button>
+              <button style={{ width:32, height:32, borderRadius:8, background:showAIPanel?"rgba(124,58,237,.15)":"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+                onClick={() => setShowAIPanel(v => !v)}>
+                <span style={{ fontSize:15 }}>🤖</span>
+              </button>
               <div style={{ flex:1 }} />
               {!isSpecial && (
                 selMode ? (
@@ -4510,14 +4650,26 @@ function AppInner() {
         </div>
 
         {/* Content area */}
-        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar || isCalc ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
-          {isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
-          {isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} isMobile={isMobile} />}
-          {isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
-          {isManual && <ManualView isMobile={isMobile} />}
-          {isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
-          {isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
-          {isNotice && (
+        <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar || isCalc || isAI ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
+          {/* 약관 미동의 시 콘텐츠 차단 */}
+          {user && !termsAccepted && !showTerms && (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", gap:12, color:"#94a3b8" }}>
+              <div style={{ fontSize:32 }}>📋</div>
+              <div style={{ fontSize:14, fontWeight:600, color:"#1e3a6e" }}>이용약관 동의가 필요합니다</div>
+              <button onClick={() => setShowTerms(true)}
+                style={{ padding:"10px 24px", borderRadius:10, border:"none", background:"#2563eb", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                약관 확인하기
+              </button>
+            </div>
+          )}
+          {(!user || termsAccepted) && isWorklog && <WorklogView worklogs={worklogs} setWorklogs={setWorklogs} folders={folders} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isCalendar && <CalendarView items={liveItems} folders={folders} calEvents={calEvents} setCalEvents={setCalEvents} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
+          {(!user || termsAccepted) && isManual && <ManualView isMobile={isMobile} />}
+          {(!user || termsAccepted) && isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
+          {(!user || termsAccepted) && isNotice && (
             <>
               <NoticeView items={visibleItems} folders={folders} isMobile={isMobile} onUpdate={upd} onDelete={softDel} />
               {visibleItems.length === 0 && (
