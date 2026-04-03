@@ -37,6 +37,22 @@ async function fsSave(uid, data) {
   await setDoc(doc(firestore, "users", uid, "data", "main"), data);
 }
 
+// AI 대화 기록 Firestore helpers
+async function fsReadAI(uid, key) {
+  try {
+    const snap = await getDoc(doc(firestore, "users", uid, "ai", key));
+    return snap.exists() ? (snap.data().messages || []) : [];
+  } catch { return []; }
+}
+async function fsSaveAI(uid, key, messages) {
+  try {
+    await setDoc(doc(firestore, "users", uid, "ai", key), {
+      messages: messages.slice(-100),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch(e) { console.warn("AI history save failed:", e); }
+}
+
 // ─── Google Drive migration helper (1회성) ────────────────
 const DRIVE_FILE_NAME = "notes-app-data.json";
 async function driveMigrate(token) {
@@ -4283,6 +4299,8 @@ function AppInner() {
               folderName={activeF?.name || ""}
               currentItems={isSpecial ? [] : visibleItems}
               onUpdateItem={upd}
+              onLoadHistory={async (key) => { const u = firebaseAuth.currentUser; return u ? fsReadAI(u.uid, key) : []; }}
+              onSaveHistory={async (key, msgs) => { const u = firebaseAuth.currentUser; if(u) fsSaveAI(u.uid, key, msgs); }}
             />
           </div>
         </div>
@@ -4364,7 +4382,7 @@ function AppInner() {
         <aside style={{ width:224, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)", display:"flex", flexDirection:"column", flexShrink:0, boxShadow:"2px 0 24px rgba(28,110,243,.25)" }}>{SC}</aside>
       )}
 
-      <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
+      <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative", background:"#fff" }}>
         {/* Top bar — Things 스타일: 배경 없음, 텍스트 강조 */}
         <div style={{ background:"#fff", padding:isMobile?"14px 14px 8px":"20px 36px 10px", borderBottom:"1px solid #e8edf5", flexShrink:0 }}>
 
@@ -4715,7 +4733,10 @@ function AppInner() {
           {(!user || termsAccepted) && isTrash && <TrashView items={items} onRestore={restoreItem} onPermDel={permDel} onEmpty={emptyTrash} />}
           {(!user || termsAccepted) && isManual && <ManualView isMobile={isMobile} />}
           {(!user || termsAccepted) && isCalc && <CalcView calcUnlocked={calcUnlocked} setCalcUnlocked={setCalcUnlocked} isMobile={isMobile} />}
-          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} onUpdateItem={upd} contextType="all" folderId={null} folderName="" currentItems={[]} />}
+          {(!user || termsAccepted) && isAI && <AIView items={liveItems} folders={folders} worklogs={worklogs} isMobile={isMobile} onUpdateItem={upd} contextType="all" folderId={null} folderName="" currentItems={[]}
+            onLoadHistory={async (key) => { const u = firebaseAuth.currentUser; return u ? fsReadAI(u.uid, key) : []; }}
+            onSaveHistory={async (key, msgs) => { const u = firebaseAuth.currentUser; if(u) fsSaveAI(u.uid, key, msgs); }}
+          />}
           {(!user || termsAccepted) && isUpcoming && <UpcomingView items={liveItems} folders={folders} onSelectFolder={selectFolder} isMobile={isMobile} />}
           {(!user || termsAccepted) && isNotice && (
             <>

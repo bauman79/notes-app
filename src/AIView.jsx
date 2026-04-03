@@ -71,6 +71,8 @@ function AIView(props) {
   var onClose     = props.onClose;
   var onUpdateItem = props.onUpdateItem;
   var currentItems = props.currentItems || [];
+  var onLoadHistory = props.onLoadHistory; // Firestore 로드 (App.jsx에서 전달)
+  var onSaveHistory = props.onSaveHistory; // Firestore 저장 (App.jsx에서 전달)
 
   // 초기 컨텍스트 — 진입점에 따라 결정됨
   var initCtxType  = props.contextType || "all";
@@ -83,12 +85,29 @@ function AIView(props) {
   var [messages,   setMessages]   = useState(function() { return loadHistory(initCtxType, initFolderId); });
   var [input,      setInput]      = useState("");
   var [loading,    setLoading]    = useState(false);
+  var [histLoaded, setHistLoaded] = useState(false);
   var [applyTarget, setApplyTarget] = useState(null);
   var [showFolderPicker, setShowFolderPicker] = useState(false);
 
   var bottomRef = useRef(null);
   var inputRef  = useRef(null);
   var saveTimer = useRef(null);
+
+  // Firestore에서 기록 로드 (마운트 시)
+  useEffect(function() {
+    var key = historyKey(initCtxType, initFolderId);
+    if (onLoadHistory) {
+      onLoadHistory(key).then(function(msgs) {
+        if (msgs && msgs.length > 0) {
+          setMessages(msgs);
+          saveHistory(initCtxType, initFolderId, msgs); // localStorage도 캐싱
+        }
+        setHistLoaded(true);
+      }).catch(function() { setHistLoaded(true); });
+    } else {
+      setHistLoaded(true);
+    }
+  }, []);
 
   // 인라인 버튼(노트 🤖)에서 진입한 경우 수신
   useEffect(function() {
@@ -110,25 +129,37 @@ function AIView(props) {
     if (bottomRef.current) bottomRef.current.scrollIntoView({ behavior:"smooth" });
   }, [messages, loading]);
 
-  // 기록 저장 (debounce)
+  // 기록 저장 — localStorage + Firestore (debounce)
   useEffect(function() {
-    if (messages.length === 0) return;
+    if (!histLoaded || messages.length === 0) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(function() {
-      saveHistory(ctxType, folderId, messages);
+      var key = historyKey(ctxType, folderId);
+      saveHistory(ctxType, folderId, messages); // localStorage
+      if (onSaveHistory) onSaveHistory(key, messages); // Firestore
     }, 2000);
     return function() { clearTimeout(saveTimer.current); };
-  }, [messages, ctxType, folderId]);
+  }, [messages, ctxType, folderId, histLoaded]);
 
   // 컨텍스트 변경 시 해당 기록 로드
   function switchContext(newCtxType, newFolderId, newFolderName) {
-    // 현재 기록 즉시 저장
-    saveHistory(ctxType, folderId, messages);
-    // 새 컨텍스트로 전환
+    var key = historyKey(ctxType, folderId);
+    saveHistory(ctxType, folderId, messages); // 현재 기록 즉시 로컬 저장
+    if (onSaveHistory) onSaveHistory(key, messages); // Firestore 저장
     setCtxType(newCtxType);
     setFolderId(newFolderId);
     setFolderName(newFolderName || "");
-    setMessages(loadHistory(newCtxType, newFolderId));
+    // 새 컨텍스트 기록 로드
+    var cached = loadHistory(newCtxType, newFolderId);
+    setMessages(cached);
+    if (onLoadHistory) {
+      onLoadHistory(historyKey(newCtxType, newFolderId)).then(function(msgs) {
+        if (msgs && msgs.length > 0) {
+          setMessages(msgs);
+          saveHistory(newCtxType, newFolderId, msgs);
+        }
+      }).catch(function(){});
+    }
     setShowFolderPicker(false);
     setApplyTarget(null);
   }
@@ -186,7 +217,9 @@ function AIView(props) {
   function clearChat() {
     if (messages.length > 0 && !window.confirm("이 대화 기록을 삭제하시겠습니까?")) return;
     setMessages([]);
-    saveHistory(ctxType, folderId, []);
+    saveHistory(ctxType, folderId, []); // localStorage
+    var key = historyKey(ctxType, folderId);
+    if (onSaveHistory) onSaveHistory(key, []); // Firestore
     setApplyTarget(null);
   }
 
