@@ -595,13 +595,7 @@ var TABS = [
 ];
 
 function CalcView(props) {
-  var calcUnlocked = props.calcUnlocked;
-  var setCalcUnlocked = props.setCalcUnlocked;
   var [activeTab, setActiveTab] = useState("ramp");
-
-  if (!calcUnlocked) {
-    return <PwModal onUnlock={function(){ setCalcUnlocked(true); }} />;
-  }
 
   var ActiveComp = TABS.find(function(t){ return t.id === activeTab; }).comp;
 

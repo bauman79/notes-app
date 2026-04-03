@@ -1961,7 +1961,7 @@ function FolderRow({ item, index, NI, isActive, handle, onSelect, onDelete, focu
   );
 }
 
-function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, onShowTerms, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone, allItems, allWorklogs }) {
+function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, onAddItem, user, onLogin, onLogout, onShowTerms, onSelectManual, trashCount, syncStatus, activeSidebarId, focusNewId, onFocusDone, allItems, allWorklogs }) {
   const [showAdd,      setShowAdd]      = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -2071,10 +2071,9 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
             { id:UPCOMING_ID, label:"Upcoming",  icon:"📅", ac:"#fecdd3",  ic:"rgba(251,113,133,.65)" },
             { id:CALENDAR_ID, label:"Calendar", icon:"◷",  ac:"#a5f3fc",  ic:"rgba(125,211,252,.65)" },
             { id:WORKLOG_ID,  label:"Worklog",  icon:"📋", ac:"#c4b5fd",  ic:"rgba(167,139,250,.7)" },
-            { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
-            { id:MANUAL_ID,   label:"Manual",   icon:"📖", ac:"#bbf7d0",  ic:"rgba(134,239,172,.7)" },
             { id:CALC_ID,     label:"Calc",     icon:"🏗", ac:"#fed7aa",  ic:"rgba(251,146,60,.7)"  },
             { id:AI_ID,       label:"AI",       icon:"🤖", ac:"#e9d5ff",  ic:"rgba(167,139,250,.7)" },
+            { id:TRASH_ID,    label:"Trash",    icon:"🗑", ac:"#fca5a5",  ic:"rgba(252,165,165,.7)", badge:trashCount },
           ].map(f => (
             <div key={f.id}
               style={{ ...NI, ...(activeFolder===f.id ? {background:"rgba(255,255,255,.12)",color:f.ac} : {color:f.ic}) }}
@@ -2239,6 +2238,18 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               </button>
             </div>
 
+            <div style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>도움말 및 약관</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+              <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #e0eaf8", background:"#f8faff", color:"#1e3a6e", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}
+                onClick={() => { setShowSettings(false); onSelectManual && onSelectManual(); }}>
+                📖 매뉴얼 보기
+              </button>
+              <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #e0eaf8", background:"#f8faff", color:"#1e3a6e", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}
+                onClick={() => { setShowSettings(false); onShowTerms && onShowTerms(); }}>
+                📋 이용약관 확인
+              </button>
+            </div>
+
             <div style={{ fontSize:11, fontWeight:700, color:"#fca5a5", letterSpacing:"1px", textTransform:"uppercase", marginBottom:8 }}>Danger Zone</div>
             <button style={{ width:"100%", padding:"11px", borderRadius:10, border:"1.5px solid #fecaca", background:"#fff5f5", color:"#e53e3e", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:8 }}
               onClick={() => { if (window.confirm("Sign out?")) { setShowSettings(false); onLogout(); } }}>
@@ -2295,8 +2306,6 @@ function SidebarInner({ sidebarItems, setSidebarItems, activeFolder, onSelect, o
               </div>
             </div>
             <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-              <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit" }}
-                onClick={() => { if(window.confirm("이용약관을 다시 확인하시겠습니까?\n\n확인 버튼을 누르면 약관 화면이 열립니다.")) onShowTerms && onShowTerms(); }}>약관</button>
               <button style={{ background:"none", border:"1px solid rgba(255,255,255,.2)", borderRadius:7, color:"rgba(255,255,255,.5)", fontSize:11, padding:"4px 8px", cursor:"pointer", fontFamily:"inherit" }}
                 onClick={onLogout}>Log out</button>
             </div>
@@ -3049,6 +3058,7 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
+  const [bodyOpen,    setBodyOpen]    = useState(false); // 본문 접기/펼치기
   const fileInputRef = useRef(null);
 
   const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
@@ -3125,7 +3135,28 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
-          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
+          {/* 본문 접기/펼치기 */}
+          {item.body && !bodyOpen ? (
+            <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", padding:"2px 0 4px" }}
+              onClick={()=>setBodyOpen(true)}>
+              <span style={{ fontSize:11, color:"#94a3b8", userSelect:"none" }}>▶</span>
+              <span style={{ fontSize:12.5, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1,
+                maxWidth: isMobile?"200px":"360px" }}>
+                {(item.body||"").replace(/<[^>]*>/g,"").slice(0,80) + ((item.body||"").replace(/<[^>]*>/g,"").length > 80 ? "…" : "")}
+              </span>
+            </div>
+          ) : bodyOpen ? (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:4, cursor:"pointer" }}
+                onClick={()=>setBodyOpen(false)}>
+                <span style={{ fontSize:11, color:"#94a3b8", userSelect:"none" }}>▼</span>
+                <span style={{ fontSize:11, color:"#94a3b8" }}>접기</span>
+              </div>
+              <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
+            </div>
+          ) : (
+            <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
+          )}
         </div>
         {(item.hiddenSections||[]).map(h=>(
           <HiddenSection key={h.id} section={h} isMobile={isMobile} onUpdate={p=>updHS(h.id,p)} onDelete={()=>delHS(h.id)} />
@@ -4208,7 +4239,7 @@ function AppInner() {
   const SC = (
     <SidebarInner sidebarItems={sidebarItems} setSidebarItems={setSidebarItems}
       activeFolder={activeFolder} onSelect={selectFolder} onAddItem={addSBI}
-      user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onShowTerms={() => setShowTerms(true)}
+      user={user} onLogin={() => setShowLogin(true)} onLogout={handleLogout} onShowTerms={() => setShowTerms(true)} onSelectManual={() => selectFolder(MANUAL_ID)}
       trashCount={trashItems.length} syncStatus={syncStatus}
       activeSidebarId={activeFolder}
       focusNewId={focusNewSBI} onFocusDone={() => setFocusNewSBI(null)}
@@ -4334,8 +4365,8 @@ function AppInner() {
       )}
 
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative" }}>
-        {/* Top bar */}
-        <div style={{ background:"#f0f4fa", padding:isMobile?"16px 14px 10px":"26px 36px 14px" }}>
+        {/* Top bar — Things 스타일: 배경 없음, 텍스트 강조 */}
+        <div style={{ background:"#fff", padding:isMobile?"14px 14px 8px":"20px 36px 10px", borderBottom:"1px solid #e8edf5", flexShrink:0 }}>
 
           {/* Row 1: hamburger + folder title */}
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: isMobile ? 10 : 0 }}>
@@ -4349,7 +4380,7 @@ function AppInner() {
               {editingFN
                 ? <input autoFocus style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", border:"none", borderBottom:"2px solid #2563eb", background:"transparent", outline:"none", fontFamily:"inherit", fontSize:isMobile?20:27, width:"100%", boxSizing:"border-box" }}
                     value={fnDraft} onChange={e => setFnDraft(e.target.value)} onBlur={commitFE} onKeyDown={e => (e.key==="Enter"||e.key==="Escape") && commitFE()} />
-                : <div style={{ fontWeight:700, color:"#0f2044", letterSpacing:"-0.5px", display:"flex", alignItems:"center", gap:6, fontSize:isMobile?20:27, cursor:isSpecial?"default":"text", overflow:"hidden" }}
+                : <div style={{ fontWeight:800, color:"#0f2044", letterSpacing:"-0.8px", display:"flex", alignItems:"center", gap:6, fontSize:isMobile?22:30, cursor:isSpecial?"default":"text", overflow:"hidden" }}
                     onClick={!isSpecial ? startFE : undefined}>
                     <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{titlePre}{activeF?.name}</span>
                     {!isSpecial && <span style={{ fontSize:13, color:"#b0c8e8", fontWeight:400, flexShrink:0 }}>✎</span>}
