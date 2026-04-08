@@ -122,7 +122,7 @@ const MANUAL_ID   = "__manual__";
 const UPCOMING_ID = "__upcoming__";
 const CALC_ID     = "__calc__";
 const AI_ID       = "__ai__";
-const TERMS_VERSION = "1.0"; // 약관 버전 — 변경 시 올려주면 재동의 요청
+const TERMS_VERSION = "1.1"; // 약관 버전 — 변경 시 올려주면 재동의 요청
 const TRASH_DAYS = 30;
 
 // ─── Drag-to-reorder: data-attr + container scan ──────────
