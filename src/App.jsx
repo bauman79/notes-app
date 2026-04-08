@@ -405,8 +405,15 @@ function useFloatingToolbar(containerRef) {
       const container = containerRef?.current;
       if (container && !container.contains(sel.anchorNode)) { setTb(null); return; }
       const r = sel.getRangeAt(0).getBoundingClientRect();
-      const cr = (container || sel.anchorNode?.parentElement)?.closest("[data-rc]")?.getBoundingClientRect() || r;
-      setTb({ x: r.left - cr.left + r.width / 2, y: r.top - cr.top - 8 });
+      // fixed 좌표 사용 — 사이드바(224px) 회피
+      const SIDEBAR_W = window.innerWidth > 600 ? 232 : 0; // 사이드바 + 여유
+      const TOOLBAR_W = 280; // 툴바 예상 너비
+      let left = r.left + r.width / 2;
+      // 사이드바에 가리면 오른쪽으로 밀기
+      left = Math.max(SIDEBAR_W + TOOLBAR_W / 2 + 8, left);
+      // 화면 오른쪽 넘어가면 왼쪽으로 당기기
+      left = Math.min(window.innerWidth - TOOLBAR_W / 2 - 8, left);
+      setTb({ x: left, y: r.top - 8 });
     }, 10);
   }, [containerRef]);
 
@@ -429,7 +436,7 @@ function FloatingToolbar({ tb, exec, tbRef }) {
   return (
     <div
       ref={tbRef}
-      style={{ position:"absolute", left:tb.x, top:tb.y, transform:"translate(-50%,-100%)", zIndex:500, filter:"drop-shadow(0 4px 16px rgba(15,32,68,.25))" }}
+      style={{ position:"fixed", left:tb.x, top:tb.y, transform:"translate(-50%,-100%)", zIndex:900, filter:"drop-shadow(0 4px 16px rgba(15,32,68,.25))" }}
       onMouseDown={e => e.preventDefault()}>
       <div style={{ display:"flex", alignItems:"center", gap:2, background:"#1a2d54", borderRadius:10, padding:"6px 8px" }}>
         <button onMouseDown={e=>{e.preventDefault();exec("bold");}} style={rtBtn}><b>B</b></button>
@@ -3074,7 +3081,8 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
-  const [bodyOpen,    setBodyOpen]    = useState(false); // 본문 접기/펼치기
+  const [bodyOpen,    setBodyOpen]    = useState(false); // 본문만 접기
+  const [cardFolded,  setCardFolded]  = useState(false); // 카드 전체 접기
   const fileInputRef = useRef(null);
 
   const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
@@ -3146,10 +3154,18 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             onChange={e=>onUpdate({title:e.target.value})}
             onFocus={onFocus}
             onClick={e=>e.stopPropagation()} />
+          {/* 카드 전체 접기/펼치기 */}
+          <span title={cardFolded ? "펼치기" : "접기"}
+            style={{ fontSize:11, color:"#b0c8e8", cursor:"pointer", userSelect:"none", flexShrink:0, padding:"0 2px", lineHeight:1 }}
+            onClick={e=>{ e.stopPropagation(); setCardFolded(v=>!v); }}>
+            {cardFolded ? "▶" : "▼"}
+          </span>
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
             onClick={()=>onUpdate({starred:!item.starred})}>★</span>
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
+        {/* 카드 접힌 상태: 아무것도 표시 안 함 */}
+        {!cardFolded && (
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
           {/* 본문 접기/펼치기 */}
           {item.body && !bodyOpen ? (
@@ -3239,14 +3255,17 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             </button>
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
               style={{display:"none"}} onChange={handleFileSelect} />
-            {/* 🤖 AI 인라인 */}
+            {/* 🤖 AI 인라인 — 휴지통에서는 숨김 */}
+            {item._showAI !== false && (
             <button title="AI에게 이 노트 분석 요청"
               style={{...footBtn, color:"#7c3aed"}}
               onClick={e=>{e.stopPropagation(); window.__openAIWithNote && window.__openAIWithNote(item);}}>
               <span style={{fontSize:12}}>🤖</span>
             </button>
+            )}
           </div>
         </div>
+        )} {/* cardFolded 닫기 */}
       </div>
       {showLM && <LinkModal onConfirm={addLk} onClose={()=>setShowLM(false)} />}
     </>

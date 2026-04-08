@@ -28,11 +28,12 @@ function saveHistory(contextType, folderId, msgs) {
 // ── Groq API 호출 ──────────────────────────────────────────
 var SYSTEM = "You are a helpful assistant. Respond in the same language the user writes in. Be concise and practical.";
 
-async function callGroq(messages) {
+async function callGroq(messages, extraSystem) {
+  var systemFull = SYSTEM + (extraSystem ? "\n\n[지침]\n" + extraSystem : "");
   var res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages: messages, systemPrompt: SYSTEM }),
+    body: JSON.stringify({ messages: messages, systemPrompt: systemFull }),
   });
   if (!res.ok) throw new Error("API 오류 " + res.status);
   var data = await res.json();
@@ -59,6 +60,42 @@ function ctxLabel(contextType, folderName) {
   if (contextType === "__upcoming__") return "📅 Upcoming";
   if (contextType === "folder")       return "📂 " + (folderName || "폴더");
   return "📋 전체 노트";
+}
+
+// ── 지침 입력 패널 ─────────────────────────────────────────
+function GuidelinePanel(props) {
+  var [draft, setDraft] = useState(props.value || "");
+  var S = {
+    wrap: { background:"#fffbeb", borderBottom:"1px solid #fde68a", padding:"14px 16px", flexShrink:0 },
+    label: { fontSize:12, fontWeight:700, color:"#92400e", marginBottom:6 },
+    ta: { width:"100%", padding:"8px 10px", borderRadius:8, border:"1px solid #fcd34d", fontSize:12.5, fontFamily:"inherit", resize:"none", outline:"none", color:"#78350f", lineHeight:1.6, boxSizing:"border-box", background:"#fff" },
+    row: { display:"flex", gap:6, marginTop:8, justifyContent:"flex-end" },
+    save: { padding:"5px 14px", borderRadius:8, border:"none", background:"#d97706", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" },
+    cancel: { padding:"5px 12px", borderRadius:8, border:"1px solid #fcd34d", background:"transparent", color:"#92400e", fontSize:12, cursor:"pointer", fontFamily:"inherit" },
+    clear: { padding:"5px 12px", borderRadius:8, border:"none", background:"transparent", color:"#b45309", fontSize:12, cursor:"pointer", fontFamily:"inherit" },
+  };
+  return (
+    <div style={S.wrap}>
+      <div style={S.label}>📌 {props.ctxLabel} — AI 지침</div>
+      <div style={{ fontSize:11, color:"#92400e", marginBottom:8, lineHeight:1.5 }}>
+        이 대화에서 AI가 따를 지침을 설정하세요.<br/>
+        예: "건축 법규 관점에서 답변해줘", "항상 한국어로 답해줘"
+      </div>
+      <textarea
+        value={draft}
+        onChange={function(e){ setDraft(e.target.value); }}
+        placeholder="지침을 입력하세요..."
+        rows={3}
+        autoFocus
+        style={S.ta}
+      />
+      <div style={S.row}>
+        {draft && <button style={S.clear} onClick={function(){ setDraft(""); }}>지우기</button>}
+        <button style={S.cancel} onClick={props.onClose}>취소</button>
+        <button style={S.save} onClick={function(){ props.onSave(draft); }}>저장</button>
+      </div>
+    </div>
+  );
 }
 
 // ── 메인 컴포넌트 ──────────────────────────────────────────
@@ -88,6 +125,11 @@ function AIView(props) {
   var [histLoaded, setHistLoaded] = useState(false);
   var [applyTarget, setApplyTarget] = useState(null);
   var [showFolderPicker, setShowFolderPicker] = useState(false);
+  var [showGuideline, setShowGuideline] = useState(false); // 지침 패널
+  var [guideline,  setGuideline]  = useState(function() {
+    // 컨텍스트별 지침 localStorage 로드
+    try { return localStorage.getItem("notes_ai_guide_" + initCtxType + (initFolderId||"")) || ""; } catch { return ""; }
+  });
 
   var bottomRef = useRef(null);
   var inputRef  = useRef(null);
@@ -203,7 +245,7 @@ function AIView(props) {
     setLoading(true);
     try {
       var api = newMessages.map(function(m) { return { role: m.role, content: m.content }; });
-      var reply = await callGroq(api);
+      var reply = await callGroq(api, guideline);
       setMessages(newMessages.concat([{ role:"assistant", content: reply, ts: new Date().toISOString() }]));
     } catch(e) {
       setMessages(newMessages.concat([{ role:"assistant", content:"❌ 오류: " + e.message, ts: new Date().toISOString() }]));
@@ -212,6 +254,12 @@ function AIView(props) {
 
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  function saveGuideline(text) {
+    setGuideline(text);
+    try { localStorage.setItem("notes_ai_guide_" + ctxType + (folderId||""), text); } catch {}
+    setShowGuideline(false);
   }
 
   function clearChat() {
@@ -324,6 +372,12 @@ function AIView(props) {
 
           {/* 버튼들 */}
           <div style={{ display:"flex", gap:5, flexShrink:0, marginLeft:8 }}>
+            {/* 지침 버튼 */}
+            <button onClick={function(){ setShowGuideline(function(v){return !v;}); }}
+              title="AI 지침 설정"
+              style={{ background: guideline ? "rgba(255,220,80,.35)" : "rgba(255,255,255,.15)", border:"none", borderRadius:7, padding:"4px 9px", color:"#fff", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+              {guideline ? "📌" : "지침"}
+            </button>
             {messages.length > 0 && (
               <button onClick={clearChat}
                 style={{ background:"rgba(255,255,255,.15)", border:"none", borderRadius:7, padding:"4px 9px", color:"#fff", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
@@ -342,6 +396,16 @@ function AIView(props) {
           Llama 3.3 70B · 대화 기록은 이 컨텍스트에만 저장됩니다
         </div>
       </div>
+
+      {/* 지침 입력 패널 */}
+      {showGuideline && (
+        <GuidelinePanel
+          value={guideline}
+          ctxLabel={curLabel}
+          onSave={saveGuideline}
+          onClose={function(){ setShowGuideline(false); }}
+        />
+      )}
 
       {/* 드롭다운 닫기 오버레이 */}
       {showFolderPicker && (
@@ -368,8 +432,19 @@ function AIView(props) {
             var isLast = !isUser && i === messages.length - 1;
             return (
               <div key={i} style={{ display:"flex", flexDirection:"column", alignItems: isUser?"flex-end":"flex-start", marginBottom:6 }}>
-                <div style={Object.assign({}, S.bubble, isUser ? S.userB : S.aiB)}>
-                  {display}
+                <div style={{ position:"relative", maxWidth:"85%" }}>
+                  <div style={Object.assign({}, S.bubble, isUser ? S.userB : S.aiB)}>
+                    {display}
+                  </div>
+                  {/* 복사 버튼 */}
+                  <button
+                    title="복사"
+                    onClick={function(){ navigator.clipboard.writeText(display).then(function(){ alert("복사됐습니다."); }); }}
+                    style={{ position:"absolute", top:4, right: isUser ? "auto" : 4, left: isUser ? 4 : "auto",
+                      background:"rgba(255,255,255,.85)", border:"none", borderRadius:5, padding:"2px 5px",
+                      fontSize:10, color:"#64748b", cursor:"pointer", lineHeight:1.4, fontFamily:"inherit" }}>
+                    복사
+                  </button>
                 </div>
                 {isLast && onUpdateItem && applyTarget && (
                   <button style={S.applyBtn} onClick={function(){ applyToNote(display); }}>
