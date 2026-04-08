@@ -4720,6 +4720,8 @@ function AppInner() {
                   </div>
                 )}
 
+          </div>{/* Row 1 닫기 */}
+
           {/* Row 2 (mobile only): sync + search + select + add */}
           {isMobile && (
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
@@ -4785,6 +4787,8 @@ function AppInner() {
               )}
             </div>
           )}
+
+        </div>{/* Top bar 닫기 */}
 
         {/* Content area */}
         <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar || isCalc || isAI ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
@@ -4882,6 +4886,8 @@ function AppInner() {
 
         <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"10px 0 14px", display:"flex", justifyContent:"center", alignItems:"center", pointerEvents:"none" }}>
           <span style={{ fontSize:11, fontWeight:800, letterSpacing:"4px", color:"rgba(15,32,68,.12)", textTransform:"uppercase", fontFamily:"'Arial Black','Helvetica Neue',sans-serif" }}>BAUMAN</span>
+        </div>
+        </div>
         </div>
       </main>
 
