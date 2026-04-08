@@ -3165,7 +3165,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
         {/* 카드 접힌 상태: 아무것도 표시 안 함 */}
-        {!cardFolded && (
+        {!cardFolded && (<>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
           {/* 본문 접기/펼치기 */}
           {item.body && !bodyOpen ? (
@@ -3265,7 +3265,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             )}
           </div>
         </div>
-        )} {/* cardFolded 닫기 */}
+        </>)} {/* cardFolded 닫기 */}
       </div>
       {showLM && <LinkModal onConfirm={addLk} onClose={()=>setShowLM(false)} />}
     </>
