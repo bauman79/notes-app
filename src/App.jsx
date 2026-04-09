@@ -3081,7 +3081,6 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
-  const [bodyOpen,    setBodyOpen]    = useState(false); // 본문만 접기
   const [cardFolded,  setCardFolded]  = useState(false); // 카드 전체 접기
   const fileInputRef = useRef(null);
 
@@ -3167,28 +3166,7 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
         {/* 카드 접힌 상태: 아무것도 표시 안 함 */}
         {!cardFolded && (<>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
-          {/* 본문 접기/펼치기 */}
-          {item.body && !bodyOpen ? (
-            <div style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", padding:"2px 0 4px" }}
-              onClick={()=>setBodyOpen(true)}>
-              <span style={{ fontSize:11, color:"#94a3b8", userSelect:"none" }}>▶</span>
-              <span style={{ fontSize:12.5, color:"#94a3b8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1,
-                maxWidth: isMobile?"200px":"360px" }}>
-                {(item.body||"").replace(/<[^>]*>/g,"").slice(0,80) + ((item.body||"").replace(/<[^>]*>/g,"").length > 80 ? "…" : "")}
-              </span>
-            </div>
-          ) : bodyOpen ? (
-            <div>
-              <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:4, cursor:"pointer" }}
-                onClick={()=>setBodyOpen(false)}>
-                <span style={{ fontSize:11, color:"#94a3b8", userSelect:"none" }}>▼</span>
-                <span style={{ fontSize:11, color:"#94a3b8" }}>접기</span>
-              </div>
-              <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
-            </div>
-          ) : (
-            <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{fontSize:isMobile?14:13.5}} />
-          )}
+          <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{ fontSize:13.5, lineHeight:1.7, color:"#1e3a6e" }} />
         </div>
         {(item.hiddenSections||[]).map(h=>(
           <HiddenSection key={h.id} section={h} isMobile={isMobile} onUpdate={p=>updHS(h.id,p)} onDelete={()=>delHS(h.id)} />
