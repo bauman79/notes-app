@@ -449,7 +449,7 @@ function FloatingToolbar({ tb, exec, tbRef }) {
             onMouseDown={e=>{e.preventDefault();exec("foreColor",c);}}/>
         ))}
         <div style={rtDiv}/>
-        {[["#fef08a","Yellow"],["#bbf7d0","Green"],["#bfdbfe","Blue"],["transparent","Clear"]].map(([c,t])=>(
+        {[["#fef08a","노랑"],["#fed7aa","주황"],["#fecdd3","분홍"],["#bbf7d0","초록"],["#bfdbfe","파랑"],["#e9d5ff","보라"],["transparent","지우기"]].map(([c,t])=>(
           <div key={c} title={t} style={{width:13,height:13,borderRadius:3,background:c==="transparent"?"#fff":c,border:c==="transparent"?"2px dashed #94a3b8":"2px solid rgba(0,0,0,.07)",cursor:"pointer"}}
             onMouseDown={e=>{e.preventDefault();exec("hiliteColor",c);}}/>
         ))}
@@ -2570,7 +2570,7 @@ function RichTableCell({ content, onChange, disabled }) {
                 onMouseDown={e=>{e.preventDefault();exec("foreColor",c);}}/>
             ))}
             <div style={rtDiv}/>
-            {[["#fef08a","Yellow"],["#bbf7d0","Green"],["#bfdbfe","Blue"],["transparent","Clear"]].map(([c,t])=>(
+            {[["#fef08a","노랑"],["#fed7aa","주황"],["#fecdd3","분홍"],["#bbf7d0","초록"],["#bfdbfe","파랑"],["#e9d5ff","보라"],["transparent","지우기"]].map(([c,t])=>(
               <div key={c} title={t} style={{width:13,height:13,borderRadius:3,background:c==="transparent"?"#fff":c,border:c==="transparent"?"2px dashed #94a3b8":"2px solid rgba(0,0,0,.07)",cursor:"pointer"}}
                 onMouseDown={e=>{e.preventDefault();exec("hiliteColor",c);}}/>
             ))}
@@ -3822,6 +3822,14 @@ function AppInner() {
   const [editingFN,    setEditingFN]    = useState(false);
   const [fnDraft,      setFnDraft]      = useState("");
   const [showAddMenu,  setShowAddMenu]  = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("notes_sidebarCollapsed") === "1"; } catch { return false; }
+  });
+  const toggleSidebarCollapsed = () => setSidebarCollapsed(v => {
+    const n = !v;
+    try { localStorage.setItem("notes_sidebarCollapsed", n?"1":"0"); } catch {}
+    return n;
+  });
   const [lastFocusedId, setLastFocusedId] = useState(null); // 마지막 포커스된 아이템 ID
   const [showSidebar,   setShowSidebar]   = useState(false);
   const [calcUnlocked, setCalcUnlocked]  = useState(false);
@@ -4410,7 +4418,15 @@ function AppInner() {
         </div>
       )}
       {!isMobile && (
-        <aside style={{ width:224, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)", display:"flex", flexDirection:"column", flexShrink:0, boxShadow:"2px 0 24px rgba(28,110,243,.25)" }}>{SC}</aside>
+        <aside style={{ width:sidebarCollapsed?40:224, background:"linear-gradient(180deg,#1c6ef3 0%,#1a5fd4 40%,#1650b8 100%)", display:"flex", flexDirection:"column", flexShrink:0, boxShadow:"2px 0 24px rgba(28,110,243,.25)", transition:"width .2s ease", overflow:"hidden", position:"relative" }}>
+          {!sidebarCollapsed && SC}
+          <button
+            title={sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기"}
+            style={{ position:"absolute", bottom:16, right:sidebarCollapsed?6:10, width:28, height:28, borderRadius:8, background:"rgba(255,255,255,.15)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,.8)", fontSize:14, zIndex:10, flexShrink:0 }}
+            onClick={toggleSidebarCollapsed}>
+            {sidebarCollapsed ? "▶" : "◀"}
+          </button>
+        </aside>
       )}
 
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", position:"relative", background:"#fff" }}>
