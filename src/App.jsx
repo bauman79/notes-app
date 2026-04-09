@@ -3080,6 +3080,17 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [tagDraft,     setTagDraft]     = useState("");
+  const [tagPopup,     setTagPopup]     = useState(null); // { tag, x, y }
+  const addTag = (tag) => {
+    const t = tag.trim().toLowerCase();
+    if (!t) return;
+    const cur = item.tags || [];
+    if (cur.includes(t)) return;
+    onUpdate({ tags: [...cur, t] });
+  };
+  const removeTag = (tag) => onUpdate({ tags: (item.tags||[]).filter(t=>t!==tag) });
   const [uploading,   setUploading]   = useState(false);
   const fileInputRef = useRef(null);
 
@@ -3216,9 +3227,90 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             ))}
           </div>
         )}
+        {/* 태그 영역 */}
+        {((item.tags||[]).length > 0 || showTagInput) && (
+          <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:4, padding:"2px 14px 6px 21px" }}
+            onClick={e=>e.stopPropagation()}>
+            {(item.tags||[]).map(tag => (
+              <span key={tag}
+                style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:11, color:"#6b8bb5",
+                  background:"#f0f5ff", borderRadius:6, padding:"2px 7px", cursor:"pointer", userSelect:"none" }}
+                onClick={e => {
+                  e.stopPropagation();
+                  setTagPopup({ tag, x: e.clientX, y: e.clientY });
+                }}>
+                #{tag}
+                <span style={{ fontSize:10, color:"#94a3b8", cursor:"pointer", marginLeft:1 }}
+                  onClick={e=>{ e.stopPropagation(); removeTag(tag); }}>×</span>
+              </span>
+            ))}
+            {showTagInput && (
+              <input autoFocus
+                value={tagDraft}
+                onChange={e=>setTagDraft(e.target.value)}
+                onKeyDown={e=>{
+                  if(e.key==="Enter"){ addTag(tagDraft); setTagDraft(""); setShowTagInput(false); }
+                  if(e.key==="Escape"){ setTagDraft(""); setShowTagInput(false); }
+                  if(e.key==="Backspace" && !tagDraft) setShowTagInput(false);
+                }}
+                onBlur={()=>{ if(tagDraft) addTag(tagDraft); setTagDraft(""); setShowTagInput(false); }}
+                placeholder="태그 입력..."
+                style={{ fontSize:11, border:"none", borderBottom:"1px solid #bfdbfe", outline:"none",
+                  background:"transparent", color:"#1e3a6e", fontFamily:"inherit", width:80, padding:"1px 2px" }} />
+            )}
+            {/* 기존 태그 추천 */}
+            {showTagInput && (() => {
+              const all = window.__allItems || [];
+              const existing = [...new Set(all.flatMap(i=>i.tags||[]))].filter(t=>!tagDraft||t.includes(tagDraft.toLowerCase())).filter(t=>!(item.tags||[]).includes(t));
+              return existing.length > 0 ? (
+                <div style={{ position:"absolute", background:"#fff", borderRadius:10, boxShadow:"0 8px 24px rgba(15,32,68,.15)", border:"1px solid #e0eaf8", zIndex:500, minWidth:120, overflow:"hidden", marginTop:2 }}>
+                  {existing.slice(0,8).map(t=>(
+                    <div key={t}
+                      style={{ padding:"7px 12px", fontSize:12, color:"#1e3a6e", cursor:"pointer" }}
+                      onMouseDown={e=>{ e.preventDefault(); addTag(t); setTagDraft(""); setShowTagInput(false); }}
+                      onMouseEnter={e=>e.currentTarget.style.background="#f0f5ff"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      #{t}
+                    </div>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+          </div>
+        )}
+        {/* 태그 클릭 팝업 — 같은 태그 노트 목록 */}
+        {tagPopup && (
+          <div style={{ position:"fixed", inset:0, zIndex:800 }}
+            onClick={()=>setTagPopup(null)}>
+            <div style={{ position:"fixed", left:Math.min(tagPopup.x, window.innerWidth-240), top:tagPopup.y+12,
+              background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.2)", border:"1px solid #e0eaf8",
+              minWidth:220, maxWidth:300, maxHeight:320, overflowY:"auto", zIndex:801 }}
+              onClick={e=>e.stopPropagation()}>
+              <div style={{ padding:"10px 14px 6px", fontSize:11, fontWeight:700, color:"#6b8bb5", borderBottom:"1px solid #f0f4fa" }}>
+                #{tagPopup.tag} · {(window.__allItems||[]).filter(i=>(i.tags||[]).includes(tagPopup.tag)).length}개
+              </div>
+              {(window.__allItems||[]).filter(i=>(i.tags||[]).includes(tagPopup.tag)).map(i=>(
+                <div key={i.id}
+                  style={{ padding:"9px 14px", fontSize:13, color:"#1e3a6e", borderBottom:"1px solid #f8fafc", cursor:"default" }}>
+                  <div style={{ fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i.title||"(제목 없음)"}</div>
+                  {i.body && <div style={{ fontSize:11, color:"#94a3b8", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i.body.replace(/<[^>]*>/g,"").slice(0,60)}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
           <span style={{ fontSize:10, color:"#a8bcd8", opacity:0, transition:"opacity .15s" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0"}>{item.createdAt}</span>
           <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            {/* # 태그 */}
+            <button title="태그 추가" style={footBtn} onClick={e=>{e.stopPropagation();setShowTagInput(v=>!v);}}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                <line x1="3" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <line x1="3" y1="9" x2="11" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <line x1="5.5" y1="2.5" x2="4.5" y2="11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <line x1="9.5" y1="2.5" x2="8.5" y2="11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+            </button>
             {/* ☐ 인라인 Todo */}
             <button title="할일 추가" style={footBtn} onClick={e=>{e.stopPropagation();addIT();}}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
@@ -4774,6 +4866,7 @@ function AppInner() {
 
         </div>
 
+        {(() => { window.__allItems = liveItems; return null; })()}
         {/* Content area */}
         <div style={{ flex:1, overflowY:"auto", WebkitOverflowScrolling:"touch", padding: isWorklog ? (isMobile?"12px 16px 40px":"8px 36px 40px") : isManual || isCalendar || isCalc || isAI ? "0" : (isMobile?"4px 16px 40px":"4px 36px 40px") }}>
           {/* 약관 미동의 시 콘텐츠 차단 */}
