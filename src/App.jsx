@@ -385,10 +385,7 @@ function RichText({ html, onChange, placeholder, style }) {
         data-placeholder={placeholder}
         style={{ outline:"none", minHeight:36, lineHeight:1.75, wordBreak:"break-word", color:"#1e3a6e", ...style }}
       />
-      <style>{`[data-rc] [contenteditable]:empty:before { content: attr(data-placeholder); color:#b0c8e0; pointer-events:none; }
-*:hover > .drag-handle, .drag-handle:hover { color: rgba(15,32,68,.25) !important; }
-*:hover > .card-date, *:hover .card-date { opacity: 1 !important; }
-`}</style>
+      <style>{`[data-rc] [contenteditable]:empty:before { content: attr(data-placeholder); color:#b0c8e0; pointer-events:none; }`}</style>
     </div>
   );
 }
@@ -3214,8 +3211,8 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             ))}
           </div>
         )}
-        <div className="card-footer" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
-          <span className="card-date" style={{ fontSize:10, color:"#a8bcd8", opacity:0, transition:"opacity .15s" }}>{item.createdAt}</span>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
+          <span style={{ fontSize:10, color:"#a8bcd8", opacity:0, transition:"opacity .15s" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0"}>{item.createdAt}</span>
           <div style={{ display:"flex", gap:5, alignItems:"center" }}>
             {/* § Section */}
             <button title="Add section" style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>
@@ -3307,10 +3304,8 @@ function SortableList({ items, setItems, getKey, collapsedHdrs, toggleHdr, selMo
 
   const handle = (idx, mt) => (
     <span
-      className="drag-handle"
-      style={{ color:"rgba(15,32,68,.0)", fontSize:16, cursor:"grab", padding:"0 4px",
-               flexShrink:0, marginTop:mt||0, userSelect:"none", touchAction:"none", lineHeight:1,
-               transition:"color .15s" }}
+      style={{ color:"rgba(15,32,68,.2)", fontSize:16, cursor:"grab", padding:"0 4px",
+               flexShrink:0, marginTop:mt||0, userSelect:"none", touchAction:"none", lineHeight:1 }}
       onMouseDown={e => beginDrag(e, idx)}
       onTouchStart={e => { const t=e.touches[0]; beginDrag({clientY:t.clientY,touches:e.touches,preventDefault:()=>e.preventDefault(),stopPropagation:()=>e.stopPropagation()},idx); }}>
       ⠿
@@ -3434,7 +3429,7 @@ function CompletedSection({ doneTodos, upd, softDel, isMobile }) {
                 {item.title||"(no title)"}
               </span>
               {!isMobile && item.createdAt && (
-                <span className="card-date" style={{ fontSize:10, color:"#c0d0e4", flexShrink:0, opacity:0, transition:"opacity .15s" }}>{item.createdAt}</span>
+                <span style={{ fontSize:10, color:"#c0d0e4", flexShrink:0, opacity:0, transition:"opacity .15s" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0"}>{item.createdAt}</span>
               )}
               {/* 휴지통으로 이동 버튼 */}
               <span
@@ -3584,7 +3579,7 @@ function ItemBlock({ item, isMobile, onUpdate, onDelete, onMove, folders, onAddB
             onKeyDown={e => { if (e.key==="Enter") { e.preventDefault(); onAddBelow?.(); } }}
           />
         )}
-        {!isMobile && <span className="card-date" style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0, opacity:0, transition:"opacity .15s" }}>{item.createdAt}</span>}
+        {!isMobile && <span style={{ fontSize:10, color:"#a8bcd8", whiteSpace:"nowrap", flexShrink:0 }}>{item.createdAt}</span>}
         <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5", marginTop:isMobile?2:0 }}
           onClick={() => onUpdate({ starred:!item.starred })}>★</span>
 
@@ -4290,7 +4285,7 @@ function AppInner() {
 
   return (
     <div style={{ display:"flex", height:"100vh", background:"#f0f4fa", fontFamily:"'SF Pro Display',-apple-system,'Helvetica Neue',sans-serif", overflow:"hidden", position:"relative" }}
-      onClick={() => { setShowAddMenu(false); setSelMoveMenu(null); }}>
+      onClick={() => setShowAddMenu(false)}>
 
       {/* 토큰 만료 배너 */}
       {syncStatus === "error" && (
@@ -4590,124 +4585,89 @@ function AppInner() {
                       onClick={() => setSelMode(true)}>Select</button>
                   )
                 )}
-                {/* 폴더 전용 버튼: ··· 메뉴 + 크게 + 버튼 */}
-                {!isSpecial && (
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    {/* ··· 오버플로우 메뉴 (Select / Excel / Import) */}
-                    {!selMode && (
-                      <div style={{ position:"relative" }}>
-                        <button
-                          title="더보기"
-                          style={{ width:34, height:34, borderRadius:9, background:"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, color:"#4b6fa8", lineHeight:1 }}
-                          onClick={e => { e.stopPropagation(); setShowAddMenu(v => v === "more" ? false : "more"); }}>
-                          ···
-                        </button>
-                        {showAddMenu === "more" && (
-                          <div style={{ position:"absolute", right:0, top:42, background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", border:"1px solid rgba(37,99,235,.08)", zIndex:300, minWidth:160, overflow:"hidden" }}>
-                            {/* Select */}
-                            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
-                              onClick={() => { setSelMode(true); setShowAddMenu(false); }}>
-                              <span style={{ fontSize:14 }}>☑️</span> 선택하기
-                            </div>
-                            {/* Excel Export */}
-                            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500, borderTop:"1px solid #f0f4fa" }}
-                              onClick={() => {
-                                setShowAddMenu(false);
-                                const folderName = activeF?.name || "folder";
-                                const folderItems = visibleItems;
-                                if (!folderItems.length) { alert("내보낼 항목이 없습니다."); return; }
-                                const rows = folderItems.map(i => ({
-                                  Type: i.type==="header"?"Header":i.type==="todo"?"Todo":"Text",
-                                  Title: i.title||"",
-                                  Body: i.body||"",
-                                  Done: i.type==="todo"?(i.done?"Yes":"No"):"",
-                                  Starred: i.starred?"★":"",
-                                  Date: i.createdAt||"",
-                                }));
-                                const ws = XLSX.utils.json_to_sheet(rows);
-                                ws["!cols"] = [{wch:8},{wch:35},{wch:50},{wch:6},{wch:6},{wch:12}];
-                                const wb = XLSX.utils.book_new();
-                                XLSX.utils.book_append_sheet(wb, ws, folderName.slice(0,31));
-                                XLSX.writeFile(wb, `${folderName}_notes.xlsx`);
-                              }}>
-                              <span style={{ fontSize:14 }}>📥</span> Excel 내보내기
-                            </div>
-                            {/* Import */}
-                            <label style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500, borderTop:"1px solid #f0f4fa" }}>
-                              <span style={{ fontSize:14 }}>📤</span> Excel 불러오기
-                              <input type="file" accept=".xlsx,.xls" style={{ display:"none" }}
-                                onChange={e => {
-                                  setShowAddMenu(false);
-                                  const file = e.target.files?.[0];
-                                  if (!file) return;
-                                  e.target.value = "";
-                                  const reader = new FileReader();
-                                  reader.onload = ev => {
-                                    try {
-                                      const wb = XLSX.read(ev.target.result, { type:"array" });
-                                      const ws = wb.Sheets[wb.SheetNames[0]];
-                                      const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
-                                      const typeMap = { "header":T.HEADER, "todo":T.TODO, "text":T.TEXT };
-                                      const newItems = rows.map(r => {
-                                        const rawType = String(r["Type"]||r["type"]||"text").toLowerCase();
-                                        const type = typeMap[rawType] || T.TEXT;
-                                        const ni = {
-                                          id: `i${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-                                          type,
-                                          folder: activeFolder,
-                                          title: String(r["Title"]||r["title"]||"").trim(),
-                                          starred: !!(r["Starred"]||r["starred"]),
-                                          createdAt: String(r["Date"]||r["date"]||"") || mkDate(),
-                                        };
-                                        if (type===T.TODO) { ni.done = String(r["Done"]||"").toLowerCase()==="yes"; }
-                                        if (type===T.TEXT) { ni.body = String(r["Body"]||r["body"]||""); ni.hiddenSections=[]; ni.links=[]; }
-                                        return ni;
-                                      }).filter(i => i.title || i.body);
-                                      if (!newItems.length) { alert("불러올 항목이 없습니다.\n열 이름: Type, Title, Body, Done, Starred, Date"); return; }
-                                      setItems(prev => [...prev, ...newItems]);
-                                      alert(newItems.length+"개 항목을 현재 폴더에 추가했습니다.");
-                                    } catch(err) { alert("파일 읽기 실패: " + err.message); }
-                                  };
-                                  reader.readAsArrayBuffer(file);
-                                }} />
-                            </label>
+                {!isSpecial && !selMode && (
+                  <>
+                    <div style={{ position:"relative" }}>
+                      <button title="더보기"
+                        style={{ width:34, height:34, borderRadius:9, background:"rgba(37,99,235,.07)", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, color:"#4b6fa8", lineHeight:1 }}
+                        onClick={e => { e.stopPropagation(); setShowAddMenu(v => v === "more" ? false : "more"); }}>
+                        ···
+                      </button>
+                      {showAddMenu === "more" && (
+                        <div style={{ position:"absolute", right:0, top:42, background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", border:"1px solid rgba(37,99,235,.08)", zIndex:300, minWidth:160, overflow:"hidden" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
+                            onClick={() => { setSelMode(true); setShowAddMenu(false); }}>
+                            <span style={{ fontSize:14 }}>☑️</span> 선택하기
                           </div>
-                        )}
-                      </div>
-                    )}
-                    {/* 선택 모드 취소/액션 */}
-                    {selMode && (
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        {selected.size > 0 && (
-                          <>
-                            <button style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#2563eb" }} onClick={shareSel}>↓ PDF</button>
-                            <button
-                              ref={selMoveBtnRef}
-                              style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#166534" }}
-                              onClick={e => {
-                                const r = selMoveBtnRef.current?.getBoundingClientRect();
-                                if (r) setSelMovePosn({ top: r.bottom + 4, left: r.left });
-                                setSelMoveMenu(v => v ? null : 'folder');
-                              }}>이동/복사</button>
-                            <button style={{ background:"#fff5f5", border:"1px solid #fecaca", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#e53e3e" }} onClick={delSel}>삭제</button>
-                          </>
-                        )}
-                        <button style={{ background:"none", border:"1px solid #e2e8f4", borderRadius:8, padding:"7px 13px", fontSize:12.5, cursor:"pointer", fontFamily:"inherit", fontWeight:600, color:"#6b7280" }}
-                          onClick={() => { setSelMode(false); setSelected(new Set()); }}>취소</button>
-                      </div>
-                    )}
-                    {/* + 추가 버튼 */}
-                    {!selMode && (
+                          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500, borderTop:"1px solid #f0f4fa" }}
+                            onClick={() => {
+                              setShowAddMenu(false);
+                              const folderName = activeF?.name || "folder";
+                              const folderItems = visibleItems;
+                              if (!folderItems.length) { alert("내보낼 항목이 없습니다."); return; }
+                              const rows = folderItems.map(i => ({
+                                Type: i.type==="header"?"Header":i.type==="todo"?"Todo":"Text",
+                                Title: i.title||"",
+                                Body: i.body||"",
+                                Done: i.type==="todo"?(i.done?"Yes":"No"):"",
+                                Starred: i.starred?"★":"",
+                                Date: i.createdAt||"",
+                              }));
+                              const ws = XLSX.utils.json_to_sheet(rows);
+                              ws["!cols"] = [{wch:8},{wch:35},{wch:50},{wch:6},{wch:6},{wch:12}];
+                              const wb = XLSX.utils.book_new();
+                              XLSX.utils.book_append_sheet(wb, ws, folderName.slice(0,31));
+                              XLSX.writeFile(wb, `${folderName}_notes.xlsx`);
+                            }}>
+                            <span style={{ fontSize:14 }}>📥</span> Excel 내보내기
+                          </div>
+                          <label style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 18px", fontSize:13.5, color:"#1e3a6e", cursor:"pointer", fontWeight:500, borderTop:"1px solid #f0f4fa" }}>
+                            <span style={{ fontSize:14 }}>📤</span> Excel 불러오기
+                            <input type="file" accept=".xlsx,.xls" style={{ display:"none" }}
+                              onChange={e => {
+                                setShowAddMenu(false);
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                e.target.value = "";
+                                const reader = new FileReader();
+                                reader.onload = ev => {
+                                  try {
+                                    const wb = XLSX.read(ev.target.result, { type:"array" });
+                                    const ws = wb.Sheets[wb.SheetNames[0]];
+                                    const rows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+                                    const typeMap = { "header":T.HEADER, "todo":T.TODO, "text":T.TEXT };
+                                    const newItems = rows.map(r => {
+                                      const rawType = String(r["Type"]||r["type"]||"text").toLowerCase();
+                                      const type = typeMap[rawType] || T.TEXT;
+                                      const ni = {
+                                        id: `i${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                                        type,
+                                        folder: activeFolder,
+                                        title: String(r["Title"]||r["title"]||"").trim(),
+                                        starred: !!(r["Starred"]||r["starred"]),
+                                        createdAt: String(r["Date"]||r["date"]||"") || mkDate(),
+                                      };
+                                      if (type===T.TODO) { ni.done = String(r["Done"]||"").toLowerCase()==="yes"; }
+                                      if (type===T.TEXT) { ni.body = String(r["Body"]||r["body"]||""); ni.hiddenSections=[]; ni.links=[]; }
+                                      return ni;
+                                    }).filter(i => i.title || i.body);
+                                    if (!newItems.length) { alert("불러올 항목이 없습니다.\n열 이름: Type, Title, Body, Done, Starred, Date"); return; }
+                                    setItems(prev => [...prev, ...newItems]);
+                                    alert(newItems.length+"개 항목을 현재 폴더에 추가했습니다.");
+                                  } catch(err) { alert("파일 읽기 실패: " + err.message); }
+                                };
+                                reader.readAsArrayBuffer(file);
+                              }} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
                     <div style={{ position:"relative" }}>
                       <button style={{ width:38, height:38, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
                         onClick={e => { e.stopPropagation(); setShowAddMenu(v => v === "add" ? false : "add"); }}>+</button>
                       {showAddMenu === "add" && (
-                        <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:160, border:"1px solid rgba(37,99,235,.08)", right:0, top:46 }}>
-                          {[
-                            {type:T.HEADER, label:"제목 (Header)", icon:"▬"},
-                            {type:T.TODO,   label:"할일 (To-do)",   icon:"☐"},
-                            {type:T.TEXT,   label:"메모 (Text)",    icon:"📝"},
-                          ].map(o => (
+                        <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:46 }}>
+                          {[{type:T.HEADER,label:"제목",icon:"▬"},{type:T.TODO,label:"할일",icon:"☐"},{type:T.TEXT,label:"메모",icon:"📝"}].map(o => (
                             <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
                               onClick={() => addItem(o.type)}>
                               <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
@@ -4716,10 +4676,10 @@ function AppInner() {
                         </div>
                       )}
                     </div>
-                    )}
-                  </div>
+                  </>
                 )}
-
+              </div>
+            )}
           </div>
 
           {/* Row 2 (mobile only): sync + search + select + add */}
@@ -4770,12 +4730,8 @@ function AppInner() {
                   <button style={{ width:36, height:36, borderRadius:10, background:"#2563eb", color:"#fff", border:"none", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(37,99,235,.35)", fontWeight:300, lineHeight:1 }}
                     onClick={e => { e.stopPropagation(); setShowAddMenu(v => v === "add" ? false : "add"); }}>+</button>
                   {showAddMenu === "add" && (
-                    <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:160, border:"1px solid rgba(37,99,235,.08)", right:0, top:44 }}>
-                      {[
-                        {type:T.HEADER, label:"제목 (Header)", icon:"▬"},
-                        {type:T.TODO,   label:"할일 (To-do)",  icon:"☐"},
-                        {type:T.TEXT,   label:"메모 (Text)",   icon:"📝"},
-                      ].map(o => (
+                    <div style={{ position:"absolute", background:"#fff", borderRadius:12, boxShadow:"0 8px 32px rgba(15,32,68,.18)", overflow:"hidden", zIndex:200, minWidth:145, border:"1px solid rgba(37,99,235,.08)", right:0, top:44 }}>
+                      {[{type:T.HEADER,label:"제목",icon:"▬"},{type:T.TODO,label:"할일",icon:"☐"},{type:T.TEXT,label:"메모",icon:"📝"}].map(o => (
                         <div key={o.type} style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 18px", fontSize:14, color:"#1e3a6e", cursor:"pointer", fontWeight:500 }}
                           onClick={() => addItem(o.type)}>
                           <span style={{ width:20, fontSize:13, color:"#2563eb", textAlign:"center" }}>{o.icon}</span>{o.label}
@@ -4887,8 +4843,6 @@ function AppInner() {
         <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"10px 0 14px", display:"flex", justifyContent:"center", alignItems:"center", pointerEvents:"none" }}>
           <span style={{ fontSize:11, fontWeight:800, letterSpacing:"4px", color:"rgba(15,32,68,.12)", textTransform:"uppercase", fontFamily:"'Arial Black','Helvetica Neue',sans-serif" }}>BAUMAN</span>
         </div>
-        </div>
-        </div>
       </main>
 
       {showLogin && (
@@ -4985,3 +4939,5 @@ export default function App() {
     </>
   );
 }
+
+// build: 1775648472
