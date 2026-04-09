@@ -3081,7 +3081,6 @@ function AttachmentItem({ att, onUpdate, onDelete }) {
 function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }) {
   const [showLM,      setShowLM]      = useState(false);
   const [uploading,   setUploading]   = useState(false);
-  const [cardFolded,  setCardFolded]  = useState(false); // 카드 전체 접기
   const fileInputRef = useRef(null);
 
   const addHS  = () => onUpdate({ hiddenSections:[...(item.hiddenSections||[]), { id:`hs${nextId++}`, label:"New Section", content:"", open:true }] });
@@ -3157,17 +3156,17 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
             onFocus={onFocus}
             onClick={e=>e.stopPropagation()} />
           {/* 카드 전체 접기/펼치기 */}
-          <span title={cardFolded ? "펼치기" : "접기"}
+          <span title={item.cardFolded ? "펼치기" : "접기"}
             style={{ fontSize:11, color:"#b0c8e8", cursor:"pointer", userSelect:"none", flexShrink:0, padding:"0 2px", lineHeight:1 }}
-            onClick={e=>{ e.stopPropagation(); setCardFolded(v=>!v); }}>
-            {cardFolded ? "▶" : "▼"}
+            onClick={e=>{ e.stopPropagation(); onUpdate({ cardFolded: !item.cardFolded }); }}>
+            {item.cardFolded ? "▶" : "▼"}
           </span>
           <span style={{ fontSize:14, cursor:"pointer", userSelect:"none", flexShrink:0, color:item.starred?"#f59e0b":"#dbe6f5" }}
             onClick={()=>onUpdate({starred:!item.starred})}>★</span>
           <span style={{ color:"#d0ddef", fontSize:19, cursor:"pointer", lineHeight:1, padding:"0 2px", userSelect:"none", flexShrink:0 }} onClick={onDelete}>×</span>
         </div>
         {/* 카드 접힌 상태: 아무것도 표시 안 함 */}
-        {!cardFolded && (<>
+        {!item.cardFolded && (<>
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
           <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{ fontSize:13.5, lineHeight:1.7, color:"#1e3a6e" }} />
         </div>
