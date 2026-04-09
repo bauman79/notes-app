@@ -3094,6 +3094,9 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
   const delTbl = id => onUpdate({ tables:(item.tables||[]).filter(t=>t.id!==id) });
   const updAtt = (id,p) => onUpdate({ attachments:(item.attachments||[]).map(a=>a.id===id?{...a,...p}:a) });
   const delAtt = id => onUpdate({ attachments:(item.attachments||[]).filter(a=>a.id!==id) });
+  const addIT  = () => onUpdate({ inlineTodos:[...(item.inlineTodos||[]), { id:`it${Date.now()}`, text:"", done:false }] });
+  const updIT  = (id,p) => onUpdate({ inlineTodos:(item.inlineTodos||[]).map(t=>t.id===id?{...t,...p}:t) });
+  const delIT  = id => onUpdate({ inlineTodos:(item.inlineTodos||[]).filter(t=>t.id!==id) });
 
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -3168,6 +3171,31 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
         <div style={{ paddingLeft:21, paddingRight:14, paddingBottom:6 }} onClick={e=>e.stopPropagation()}>
           <RichText html={item.body||""} onChange={v=>onUpdate({body:v})} placeholder="Write content here..." style={{ fontSize:13.5, lineHeight:1.7, color:"#1e3a6e" }} />
         </div>
+        {(item.inlineTodos||[]).length > 0 && (
+          <div style={{ padding:"2px 14px 6px 21px", display:"flex", flexDirection:"column", gap:3 }}>
+            {(item.inlineTodos||[]).map(t => (
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <input type="checkbox" checked={!!t.done}
+                  style={{ width:13, height:13, accentColor:"#2563eb", cursor:"pointer", flexShrink:0 }}
+                  onChange={e => {
+                    updIT(t.id, { done: e.target.checked });
+                    if (e.target.checked) setTimeout(() => delIT(t.id), 800);
+                  }} />
+                <input
+                  value={t.text}
+                  placeholder="할일 입력..."
+                  onChange={e => updIT(t.id, { text: e.target.value })}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { e.preventDefault(); addIT(); }
+                    if (e.key === "Backspace" && !t.text) { e.preventDefault(); delIT(t.id); }
+                  }}
+                  style={{ flex:1, border:"none", outline:"none", fontSize:12.5, color: t.done?"#94a3b8":"#1e3a6e",
+                    textDecoration: t.done?"line-through":"none", background:"transparent",
+                    fontFamily:"inherit", lineHeight:1.5 }} />
+              </div>
+            ))}
+          </div>
+        )}
         {(item.hiddenSections||[]).map(h=>(
           <HiddenSection key={h.id} section={h} isMobile={isMobile} onUpdate={p=>updHS(h.id,p)} onDelete={()=>delHS(h.id)} />
         ))}
@@ -3192,6 +3220,13 @@ function TextBlock({ item, isMobile, drag, bp, fs, onUpdate, onDelete, onFocus }
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 14px 10px", borderTop:"1px solid #f0f4fa", marginTop:4 }}>
           <span style={{ fontSize:10, color:"#a8bcd8", opacity:0, transition:"opacity .15s" }} onMouseEnter={e=>e.currentTarget.style.opacity="1"} onMouseLeave={e=>e.currentTarget.style.opacity="0"}>{item.createdAt}</span>
           <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+            {/* ☐ 인라인 Todo */}
+            <button title="할일 추가" style={footBtn} onClick={e=>{e.stopPropagation();addIT();}}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
+                <rect x="1.5" y="1.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+                <path d="M4 7l2.5 2.5L10 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             {/* § Section */}
             <button title="Add section" style={footBtn} onClick={e=>{e.stopPropagation();addHS();}}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{display:"block"}}>
